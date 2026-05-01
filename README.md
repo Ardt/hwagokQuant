@@ -1,4 +1,4 @@
-# Quant Trading System
+# hwagokQuant Quant Trading System
 
 LSTM + Sentiment analysis for US (S&P500/NASDAQ100) and KRX (KOSPI/KOSDAQ) markets.
 Distributed architecture: Train (OCI A1), Trade (Raspberry Pi), Dashboard (Vercel).

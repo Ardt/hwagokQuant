@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
   title: "Q Dashboard",
@@ -18,7 +19,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <a href="/status" style={{ color: "#888", textDecoration: "none" }}>Status</a>
         </nav>
         <main style={{ padding: "2rem" }}>{children}</main>
+        <SpeedInsights />
+        <Analytics />
       </body>
+    </html>
+  );
+}
+   </body>
     </html>
   );
 }

@@ -1,0 +1,90 @@
+"""Ensemble model: adjusts per-ticker signals based on macro + portfolio state."""
+
+import numpy as np
+import config as cfg
+from src.logger import get
+
+log = get("model.ensemble")
+
+
+def adjust_signals(ticker_signals: list[dict], macro: dict, portfolio_state: dict) -> list[dict]:
+    """
+    Adjust raw ticker signals using macro context and portfolio state.
+
+    Args:
+        ticker_signals: [{"ticker": str, "signal": int, "probability": float, "price": float}, ...]
+        macro: {"VIX": float, "FedFundsRate": float, "TreasurySpread": float, ...}
+        portfolio_state: {"cash_pct": float, "concentration": dict, "num_holdings": int}
+
+    Returns:
+        Same list with adjusted signal/probability.
+    """
+    vix = macro.get("VIX", 20)
+    spread = macro.get("TreasurySpread", 1.0)
+
+    # Risk multiplier: high VIX or inverted yield curve → reduce buy confidence
+    risk_mult = _risk_multiplier(vix, spread)
+    log.debug(f"Risk multiplier: {risk_mult:.2f} (VIX={vix:.1f}, spread={spread:.2f})")
+
+    cash_pct = portfolio_state.get("cash_pct", 1.0)
+    concentration = portfolio_state.get("concentration", {})
+
+    adjusted = []
+    for s in ticker_signals:
+        ticker = s["ticker"]
+        signal = s["signal"]
+        prob = s["probability"]
+
+        # Apply risk multiplier to buy signals
+        if signal == 1:
+            prob = prob * risk_mult
+            # Reduce if already concentrated in this ticker
+            weight = concentration.get(ticker, 0)
+            if weight > 0.25:
+                prob *= 0.5
+                log.debug(f"{ticker}: concentration penalty (weight={weight:.1%})")
+            # Reduce if low cash
+            if cash_pct < 0.1:
+                prob *= 0.5
+                log.debug(f"{ticker}: low cash penalty (cash={cash_pct:.1%})")
+
+        # Apply risk multiplier to hold threshold for sells
+        elif signal == -1:
+            # In high-risk environment, be more aggressive selling
+            prob = prob * (2 - risk_mult)  # risk_mult < 1 → sell more
+
+        # Re-evaluate signal based on adjusted probability
+        if signal == 1 and prob < cfg.SIGNAL_THRESHOLD:
+            signal = 0  # downgrade BUY to HOLD
+            log.info(f"{ticker}: BUY → HOLD (adjusted prob={prob:.2%})")
+
+        adjusted.append({**s, "signal": signal, "probability": prob, "original_signal": s["signal"]})
+
+    return adjusted
+
+
+def _risk_multiplier(vix: float, treasury_spread: float) -> float:
+    """
+    Returns 0.0-1.0 multiplier. Lower = more risk = reduce buys.
+    VIX > 30 → high fear → reduce
+    Treasury spread < 0 → yield curve inverted → reduce
+    """
+    # VIX component: normal=20, high=30+, extreme=40+
+    if vix > 40:
+        vix_score = 0.3
+    elif vix > 30:
+        vix_score = 0.6
+    elif vix > 25:
+        vix_score = 0.8
+    else:
+        vix_score = 1.0
+
+    # Yield curve: positive=healthy, negative=recession signal
+    if treasury_spread < -0.5:
+        spread_score = 0.4
+    elif treasury_spread < 0:
+        spread_score = 0.7
+    else:
+        spread_score = 1.0
+
+    return vix_score * spread_score

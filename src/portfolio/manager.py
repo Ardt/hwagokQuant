@@ -71,6 +71,13 @@ def record_backtest(portfolio_id: int, ticker: str, metrics: dict):
 # ============================================================
 
 def add_to_watchlist(portfolio_id: int, ticker: str):
+    from src.market import detect_market
+    market = detect_market(ticker)
+    current = db.get_watchlist(portfolio_id)
+    same_market = [w for w in current if detect_market(w["ticker"]) == market]
+    if len(same_market) >= cfg.WATCHLIST_MAX_PER_MARKET:
+        log.warning(f"Watchlist limit ({cfg.WATCHLIST_MAX_PER_MARKET}) reached for {market}")
+        return
     db.add_to_watchlist(portfolio_id, ticker)
 
 

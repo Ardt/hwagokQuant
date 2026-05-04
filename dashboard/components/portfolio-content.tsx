@@ -1,0 +1,171 @@
+"use client"
+
+import { useState } from "react"
+import { Briefcase, TrendingUp, ArrowRightLeft } from "lucide-react"
+import { CurrencyToggle } from "./currency-toggle"
+import { convert, formatCurrency, CURRENCY_SYMBOLS, type Currency } from "@/lib/currency"
+import { EquityChart } from "./equity-chart"
+import { Watchlist } from "./watchlist"
+import { DeletePortfolio } from "./portfolio-manage"
+import { StrategyEditor } from "./strategy-editor"
+
+interface PortfolioData {
+  id: number
+  name: string
+  initial_capital: number
+  base_currency: string
+  signal_threshold: number | null
+  vix_threshold: number | null
+  max_position_pct: number | null
+  min_cash_pct: number | null
+  holdings: any[]
+  snapshots: any[]
+  transactions: any[]
+  watchlist: { ticker: string }[]
+  sharpe: number
+  maxDrawdown: number
+  realizedPnl: { ticker: string; shares: number; sell_price: number; cost_basis: number; pnl: number; timestamp: string }[]
+}
+
+export function PortfolioContent({ portfolios, names, rate }: {
+  portfolios: PortfolioData[]
+  names: Record<string, string>
+  rate: number
+}) {
+  const [baseCurrency, setBaseCurrency] = useState<Currency>("USD")
+
+  function totalValue(holdings: any[]): number {
+    return holdings.reduce((sum, h) => {
+      const val = h.shares * (h.current_price || h.avg_cost)
+      return sum + convert(val, h.currency || "USD", baseCurrency, rate)
+    }, 0)
+  }
+
+  return (
+    <>
+      {portfolios.map((p) => (
+        <div key={p.id} className="bg-white dark:bg-[#0F0F12] rounded-xl border border-gray-200 dark:border-[#1F1F23]">
+          <div className="p-4 border-b border-gray-100 dark:border-[#1F1F23] flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Briefcase className="w-4 h-4" /> {p.name}
+                <DeletePortfolio id={p.id} name={p.name} />
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Total: {formatCurrency(totalValue(p.holdings), baseCurrency)}
+              </p>
+              <StrategyEditor portfolioId={p.id} params={{
+                signal_threshold: p.signal_threshold ?? 0.5,
+                vix_threshold: p.vix_threshold ?? 30,
+                max_position_pct: p.max_position_pct ?? 0.25,
+                min_cash_pct: p.min_cash_pct ?? 0.10,
+              }} />
+            </div>
+            <CurrencyToggle defaultCurrency={baseCurrency} onChange={setBaseCurrency} />
+          </div>
+
+          {/* Risk Metrics */}
+          {(p.sharpe !== 0 || p.maxDrawdown !== 0) && (
+            <div className="p-4 border-b border-gray-100 dark:border-[#1F1F23] flex gap-6">
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Sharpe Ratio</p>
+                <p className={`text-sm font-semibold ${p.sharpe >= 1 ? "text-emerald-600 dark:text-emerald-400" : p.sharpe >= 0 ? "text-gray-900 dark:text-white" : "text-red-600 dark:text-red-400"}`}>
+                  {p.sharpe.toFixed(2)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Max Drawdown</p>
+                <p className="text-sm font-semibold text-red-600 dark:text-red-400">
+                  {(p.maxDrawdown * 100).toFixed(1)}%
+                </p>
+              </div>
+              {p.realizedPnl.length > 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Realized P&L</p>
+                  <p className={`text-sm font-semibold ${p.realizedPnl.reduce((s, r) => s + r.pnl, 0) >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
+                    {p.realizedPnl.reduce((s, r) => s + r.pnl, 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Equity Curve */}
+          {p.snapshots.length > 1 && (
+            <div className="p-4 border-b border-gray-100 dark:border-[#1F1F23]">
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <TrendingUp className="w-3.5 h-3.5" /> Equity Curve
+              </h3>
+              <EquityChart snapshots={p.snapshots} />
+            </div>
+          )}
+
+          {/* Holdings — native currency */}
+          <div className="p-4 border-b border-gray-100 dark:border-[#1F1F23]">
+            {p.holdings.length ? (
+              <div className="space-y-1">
+                {p.holdings.map((h: any) => {
+                  const cur = (h.currency || "USD") as Currency
+                  const sym = CURRENCY_SYMBOLS[cur]
+                  const val = h.shares * (h.current_price || h.avg_cost)
+                  return (
+                    <div key={h.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1F1F23] transition-colors">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">{names[h.ticker] || h.ticker}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {names[h.ticker] ? h.ticker + " · " : ""}{h.shares} shares @ {sym}{Number(h.avg_cost).toLocaleString()}
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-sm font-medium text-gray-900 dark:text-white">
+                          {sym}{Number(h.current_price || h.avg_cost).toLocaleString()}
+                        </span>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {formatCurrency(val, cur)}
+                        </p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 dark:text-gray-400">No holdings.</p>
+            )}
+          </div>
+
+          {/* Watchlist */}
+          <div className="p-4 border-b border-gray-100 dark:border-[#1F1F23]">
+            <Watchlist portfolioId={p.id} items={p.watchlist} names={names} />
+          </div>
+
+          {/* Transactions */}
+          {p.transactions.length > 0 && (
+            <div className="p-4">
+              <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <ArrowRightLeft className="w-3.5 h-3.5" /> Recent Transactions
+              </h3>
+              <div className="space-y-1">
+                {p.transactions.map((t: any) => (
+                  <div key={t.id} className="flex items-center justify-between p-2 rounded-lg text-xs">
+                    <div className="flex items-center gap-3">
+                      <span className={`font-medium px-2 py-0.5 rounded ${
+                        t.action === "BUY" ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+                        : "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+                      }`}>{t.action}</span>
+                      <span className="text-gray-900 dark:text-white font-medium">{names[t.ticker] || t.ticker}</span>
+                      <span className="text-gray-500 dark:text-gray-400">{t.shares} @ {Number(t.price).toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {t.source && <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400 uppercase">{t.source}</span>}
+                      <span className="text-gray-400 dark:text-gray-500">{new Date(t.timestamp).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </>
+  )
+}

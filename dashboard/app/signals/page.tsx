@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase"
+import { getTickerNames } from "@/lib/ticker-names"
 import { Signal, ArrowUpRight, ArrowDownLeft, Minus } from "lucide-react"
 
 export default async function SignalsPage() {
@@ -7,6 +8,9 @@ export default async function SignalsPage() {
     .select("*")
     .order("created_at", { ascending: false })
     .limit(100)
+
+  const tickers = Array.from(new Set(signals?.map((s) => s.ticker) || []))
+  const names = await getTickerNames(tickers)
 
   return (
     <div className="space-y-6">
@@ -36,8 +40,8 @@ export default async function SignalsPage() {
 
               <div className="flex-1 flex items-center justify-between min-w-0">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">{s.ticker}</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(s.created_at).toLocaleString()}</p>
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white">{names[s.ticker] || s.ticker}</h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{names[s.ticker] ? s.ticker + " · " : ""}{new Date(s.created_at).toLocaleString()}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs font-medium ${

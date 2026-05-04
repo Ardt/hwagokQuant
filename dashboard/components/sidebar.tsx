@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, BarChart2, Briefcase, Signal, Settings, Activity, Menu } from "lucide-react"
+import { Home, BarChart2, Briefcase, Signal, Settings, Activity, Menu, GitCompare } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
@@ -10,6 +10,7 @@ const navItems = [
   { href: "/", icon: Home, label: "Dashboard" },
   { href: "/training", icon: BarChart2, label: "Training" },
   { href: "/portfolio", icon: Briefcase, label: "Portfolio" },
+  { href: "/compare", icon: GitCompare, label: "Compare" },
   { href: "/signals", icon: Signal, label: "Signals" },
   { href: "/control", icon: Settings, label: "Control" },
   { href: "/status", icon: Activity, label: "Status" },

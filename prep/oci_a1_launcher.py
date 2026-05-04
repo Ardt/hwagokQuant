@@ -3,7 +3,7 @@ OCI A1 (Ampere ARM) Instance Auto-Provisioner
 Retries LaunchInstance until capacity becomes available.
 
 Prerequisites:
-  pip install oci
+  Python 3.8+ (no manual pip install needed — auto-installs oci SDK)
   Set up OCI config: ~/.oci/config (or use env vars)
   Get values from OCI Console → Compute → Create Instance (inspect the form)
 
@@ -11,7 +11,14 @@ Usage:
   python oci_a1_launcher.py
 """
 
-import oci
+import subprocess, sys
+
+try:
+    import oci
+except ImportError:
+    print("Installing oci SDK...")
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "oci==2.133.0", "-q"])
+    import oci
 import time
 import sys
 from datetime import datetime

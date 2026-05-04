@@ -267,8 +267,8 @@ vercel --prod
 - [ ] Set up OCI account + create buckets (`q-models`, `q-results`)
 - [ ] Create pre-authenticated request URL for Vercel
 - [ ] Provision OCI A1 instance (use `prep/oci_a1_launcher.py`)
-- [ ] Push repo to GitHub
-- [ ] Deploy dashboard to Vercel
+- [x] Push repo to GitHub
+- [x] Deploy dashboard to Vercel
 - [ ] Set up Raspberry Pi 4B (install Python, clone repo, configure cron)
 - [ ] Set up Tailscale across all nodes
 - [ ] Test full cycle: train (OCI) → upload → trade (Pi) → download → dashboard (Vercel)

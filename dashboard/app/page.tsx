@@ -1,70 +1,78 @@
-import { supabase } from "@/lib/supabase";
+import { supabase } from "@/lib/supabase"
+import { Wallet, Signal } from "lucide-react"
 
 export default async function Home() {
   const { data: portfolios } = await supabase
     .from("portfolios")
-    .select("id, name, initial_capital, created_at");
+    .select("id, name, initial_capital, created_at")
 
   const { data: recentSignals } = await supabase
     .from("signals")
     .select("ticker, signal, probability, created_at")
     .order("created_at", { ascending: false })
-    .limit(10);
+    .limit(10)
 
   return (
-    <div>
-      <h1>Overview</h1>
-      <section>
-        <h2>Portfolios</h2>
-        {portfolios?.length ? (
-          <table style={{ borderCollapse: "collapse", width: "100%" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid #333" }}>
-                <th style={{ textAlign: "left", padding: "0.5rem" }}>Name</th>
-                <th style={{ textAlign: "right", padding: "0.5rem" }}>Capital</th>
-                <th style={{ textAlign: "left", padding: "0.5rem" }}>Created</th>
-              </tr>
-            </thead>
-            <tbody>
-              {portfolios.map((p) => (
-                <tr key={p.id} style={{ borderBottom: "1px solid #222" }}>
-                  <td style={{ padding: "0.5rem" }}>{p.name}</td>
-                  <td style={{ padding: "0.5rem", textAlign: "right" }}>{p.initial_capital?.toLocaleString()}</td>
-                  <td style={{ padding: "0.5rem" }}>{new Date(p.created_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : <p style={{ color: "#666" }}>No portfolios yet.</p>}
-      </section>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Overview</h1>
 
-      <section style={{ marginTop: "2rem" }}>
-        <h2>Recent Signals</h2>
-        {recentSignals?.length ? (
-          <table style={{ borderCollapse: "collapse", width: "100%" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid #333" }}>
-                <th style={{ textAlign: "left", padding: "0.5rem" }}>Ticker</th>
-                <th style={{ textAlign: "center", padding: "0.5rem" }}>Signal</th>
-                <th style={{ textAlign: "right", padding: "0.5rem" }}>Confidence</th>
-                <th style={{ textAlign: "left", padding: "0.5rem" }}>Date</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentSignals.map((s, i) => (
-                <tr key={i} style={{ borderBottom: "1px solid #222" }}>
-                  <td style={{ padding: "0.5rem" }}>{s.ticker}</td>
-                  <td style={{ padding: "0.5rem", textAlign: "center", color: s.signal === 1 ? "#4ade80" : s.signal === -1 ? "#f87171" : "#888" }}>
-                    {s.signal === 1 ? "BUY" : s.signal === -1 ? "SELL" : "HOLD"}
-                  </td>
-                  <td style={{ padding: "0.5rem", textAlign: "right" }}>{(s.probability * 100).toFixed(1)}%</td>
-                  <td style={{ padding: "0.5rem" }}>{new Date(s.created_at).toLocaleDateString()}</td>
-                </tr>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Portfolios Card */}
+        <div className="bg-white dark:bg-[#0F0F12] rounded-xl p-6 border border-gray-200 dark:border-[#1F1F23]">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <Wallet className="w-4 h-4" />
+            Portfolios
+          </h2>
+          {portfolios?.length ? (
+            <div className="space-y-2">
+              {portfolios.map((p) => (
+                <div key={p.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1F1F23] transition-colors">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">{p.name}</h3>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(p.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <span className="text-sm font-medium text-gray-900 dark:text-white">
+                    {p.initial_capital?.toLocaleString()}
+                  </span>
+                </div>
               ))}
-            </tbody>
-          </table>
-        ) : <p style={{ color: "#666" }}>No signals yet.</p>}
-      </section>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No portfolios yet.</p>
+          )}
+        </div>
+
+        {/* Recent Signals Card */}
+        <div className="bg-white dark:bg-[#0F0F12] rounded-xl p-6 border border-gray-200 dark:border-[#1F1F23]">
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
+            <Signal className="w-4 h-4" />
+            Recent Signals
+          </h2>
+          {recentSignals?.length ? (
+            <div className="space-y-2">
+              {recentSignals.map((s, i) => (
+                <div key={i} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1F1F23] transition-colors">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">{s.ticker}</span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                      s.signal === 1 ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+                      : s.signal === -1 ? "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400"
+                      : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                    }`}>
+                      {s.signal === 1 ? "BUY" : s.signal === -1 ? "SELL" : "HOLD"}
+                    </span>
+                  </div>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                    {(s.probability * 100).toFixed(1)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500 dark:text-gray-400">No signals yet.</p>
+          )}
+        </div>
+      </div>
     </div>
-  );
+  )
 }

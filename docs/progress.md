@@ -242,9 +242,9 @@ Configure in `config.py` → `NOTIFICATIONS` dict.
 |---------|---------|------|--------|
 | Supabase | PostgreSQL database (shared) | Free (500 MB) | ✅ Connected |
 | OCI Object Storage | Model files + training results | Free (10 GB) | ⬜ Pending |
-| Vercel | Dashboard hosting (Next.js) | Free (Hobby) | ⬜ Pending |
+| Vercel | Dashboard hosting (Next.js) | Free (Hobby) | ✅ Deployed |
 | OCI A1 Compute | train.py server (daily) | Free (4 OCPU / 24 GB) | ⬜ Pending |
-| GitHub | Code repo + deploy trigger | Free | ⬜ Pending |
+| GitHub | Code repo + deploy trigger | Free | ✅ Connected |
 
 ### Notifications
 
@@ -299,6 +299,9 @@ Core logic complete ✅. Remaining: adapt for distributed deployment.
 | # | Task | Status |
 |---|------|--------|
 | 1 | Scaffold Vercel dashboard (Next.js) | ✅ |
-| 2 | Read results from OCI Object Storage | ✅ |
+| 2 | Read results from OCI Object Storage | ✅ (code ready, pending OCI bucket setup) |
 | 3 | Read portfolio data from Supabase | ✅ |
 | 4 | Display: training results, backtest, holdings, P&L | ✅ |
+| 5 | Deploy to Vercel (GitHub auto-deploy) | ✅ |
+| 6 | Vercel Analytics + Speed Insights | ✅ |
+| 7 | Connect OCI Object Storage (set `OCI_RESULTS_URL` env var) | ⬜ |

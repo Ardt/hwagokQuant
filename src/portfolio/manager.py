@@ -168,9 +168,16 @@ def realized_pnl(portfolio_id: int) -> list[dict]:
 
 def _calc_cash(portfolio_id: int) -> float:
     p = db.get_portfolio(portfolio_id)
-    cash = p["initial_capital"]
+    cash = 0.0
     for t in db.get_transactions(portfolio_id):
-        cash += t["total"] if t["action"] == "SELL" else -t["total"]
+        if t["action"] == "DEPOSIT":
+            cash += t["total"]
+        elif t["action"] == "WITHDRAW":
+            cash -= t["total"]
+        elif t["action"] == "SELL":
+            cash += t["total"]
+        elif t["action"] == "BUY":
+            cash -= t["total"]
     return cash
 
 

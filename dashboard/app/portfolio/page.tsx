@@ -40,7 +40,7 @@ export default async function PortfolioPage() {
       const realizedPnl = computeRealizedPnl(transactions || [])
       const recentTxns = [...(transactions || [])].reverse().slice(0, 20)
 
-      return { ...p, holdings: holdings || [], snapshots: snapshots || [], transactions: recentTxns, watchlist: watchlist || [], sharpe, maxDrawdown, realizedPnl }
+      return { ...p, holdings: holdings || [], snapshots: snapshots || [], transactions: recentTxns, allTransactions: transactions || [], watchlist: watchlist || [], sharpe, maxDrawdown, realizedPnl }
     })
   )
 

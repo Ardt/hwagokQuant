@@ -22,6 +22,7 @@ interface PortfolioData {
   holdings: any[]
   snapshots: any[]
   transactions: any[]
+  allTransactions: any[]
   watchlist: { ticker: string }[]
   sharpe: number
   maxDrawdown: number
@@ -63,7 +64,19 @@ export function PortfolioContent({ portfolios, names, rate }: {
                 <DeletePortfolio id={p.id} name={p.name} />
               </button>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Holdings: {formatCurrency(totalValue(p.holdings), baseCurrency)} | Cash: {formatCurrency(p.initial_capital - p.holdings.reduce((s: number, h: any) => s + h.shares * h.avg_cost, 0), baseCurrency)} | Total: {formatCurrency(totalValue(p.holdings) + p.initial_capital - p.holdings.reduce((s: number, h: any) => s + h.shares * h.avg_cost, 0), baseCurrency)}
+                Holdings: {formatCurrency(totalValue(p.holdings), baseCurrency)} | Cash: {formatCurrency(p.allTransactions.reduce((s: number, t: any) => {
+                  if (t.action === "DEPOSIT") return s + t.total
+                  if (t.action === "WITHDRAW") return s - t.total
+                  if (t.action === "BUY") return s - t.total
+                  if (t.action === "SELL") return s + t.total
+                  return s
+                }, 0), baseCurrency)} | Total: {formatCurrency(totalValue(p.holdings) + p.allTransactions.reduce((s: number, t: any) => {
+                  if (t.action === "DEPOSIT") return s + t.total
+                  if (t.action === "WITHDRAW") return s - t.total
+                  if (t.action === "BUY") return s - t.total
+                  if (t.action === "SELL") return s + t.total
+                  return s
+                }, 0), baseCurrency)}
               </p>
               <StrategyEditor portfolioId={p.id} params={{
                 signal_threshold: p.signal_threshold ?? 0.5,

@@ -69,6 +69,8 @@ export function TradeForm({ portfolios }: { portfolios: { id: number; name: stri
         <select value={form.action} onChange={(e) => setForm({ ...form, action: e.target.value })} className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white">
           <option value="BUY">BUY</option>
           <option value="SELL">SELL</option>
+          <option value="DEPOSIT">DEPOSIT</option>
+          <option value="WITHDRAW">WITHDRAW</option>
         </select>
         <div className="relative">
           <input placeholder="Ticker or name" value={form.ticker} onChange={(e) => handleTickerChange(e.target.value)} onFocus={() => suggestions.length && setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} required className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white" />

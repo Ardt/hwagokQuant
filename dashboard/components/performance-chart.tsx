@@ -16,9 +16,16 @@ export function PerformanceChart({ data }: { data: any[] }) {
           <XAxis dataKey="ticker" tick={{ fontSize: 11, fill: "#888" }} />
           <YAxis tick={{ fontSize: 11, fill: "#888" }} tickFormatter={(v) => `${v}%`} />
           <Tooltip
-            contentStyle={{ background: "#1a1a1e", border: "1px solid #333", borderRadius: 8 }}
-            labelStyle={{ color: "#fff" }}
+            contentStyle={{
+              background: "#0f0f12",
+              border: "1px solid #10b981",
+              borderRadius: 8,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.5)",
+            }}
+            labelStyle={{ color: "#fff", fontWeight: 600, marginBottom: 4 }}
+            itemStyle={{ color: "#10b981" }}
             formatter={(value: number) => [`${value}%`, "Return"]}
+            cursor={{ fill: "rgba(255,255,255,0.05)" }}
           />
           <Bar dataKey="return" radius={[4, 4, 0, 0]}>
             {chartData.map((entry, i) => (

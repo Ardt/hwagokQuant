@@ -74,8 +74,17 @@ export default async function TrainingPage() {
   const usResults = await getResults("us")
   const krxResults = await getResults("krx")
 
-  const allTickers = [...usResults, ...krxResults].map((r) => r.ticker)
+  const allTickers = [...usResults, ...krxResults].map((r) => {
+    const t = String(r.ticker)
+    return /^\d+$/.test(t) ? t.padStart(6, "0") : t
+  })
   const names = await getTickerNames(allTickers)
+
+  // Also normalize ticker in results for display lookup
+  for (const r of [...usResults, ...krxResults]) {
+    const t = String(r.ticker)
+    if (/^\d+$/.test(t)) r.ticker = t.padStart(6, "0")
+  }
 
   return (
     <div className="space-y-8">

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Briefcase, TrendingUp, ArrowRightLeft } from "lucide-react"
+import { Briefcase, TrendingUp, ArrowRightLeft, ChevronDown, ChevronRight } from "lucide-react"
 import { CurrencyToggle } from "./currency-toggle"
 import { convert, formatCurrency, CURRENCY_SYMBOLS, type Currency } from "@/lib/currency"
 import { EquityChart } from "./equity-chart"
@@ -42,18 +42,28 @@ export function PortfolioContent({ portfolios, names, rate }: {
     }, 0)
   }
 
+  const [openIds, setOpenIds] = useState<Set<number>>(new Set())
+  function toggle(id: number) {
+    setOpenIds((prev) => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
   return (
     <>
       {portfolios.map((p) => (
         <div key={p.id} className="bg-white dark:bg-[#0F0F12] rounded-xl border border-gray-200 dark:border-[#1F1F23]">
           <div className="p-4 border-b border-gray-100 dark:border-[#1F1F23] flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <button onClick={() => toggle(p.id)} className="flex items-center gap-2 text-lg font-bold text-gray-900 dark:text-white hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+                {openIds.has(p.id) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                 <Briefcase className="w-4 h-4" /> {p.name}
                 <DeletePortfolio id={p.id} name={p.name} />
-              </h2>
+              </button>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Total: {formatCurrency(totalValue(p.holdings), baseCurrency)}
+                Holdings: {formatCurrency(totalValue(p.holdings), baseCurrency)} | Cash: {formatCurrency(p.initial_capital - p.holdings.reduce((s: number, h: any) => s + h.shares * h.avg_cost, 0), baseCurrency)} | Total: {formatCurrency(totalValue(p.holdings) + p.initial_capital - p.holdings.reduce((s: number, h: any) => s + h.shares * h.avg_cost, 0), baseCurrency)}
               </p>
               <StrategyEditor portfolioId={p.id} params={{
                 signal_threshold: p.signal_threshold ?? 0.5,
@@ -66,6 +76,7 @@ export function PortfolioContent({ portfolios, names, rate }: {
             <CurrencyToggle defaultCurrency={baseCurrency} onChange={setBaseCurrency} />
           </div>
 
+          {openIds.has(p.id) && <>
           {/* Risk Metrics */}
           {(p.sharpe !== 0 || p.maxDrawdown !== 0) && (
             <div className="p-4 border-b border-gray-100 dark:border-[#1F1F23] flex gap-6">
@@ -167,6 +178,7 @@ export function PortfolioContent({ portfolios, names, rate }: {
               </div>
             </div>
           )}
+          </>}
         </div>
       ))}
     </>

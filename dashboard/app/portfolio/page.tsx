@@ -13,8 +13,11 @@ export default async function PortfolioPage() {
   if (!portfolios?.length) {
     return (
       <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Portfolio</h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">No portfolios.</p>
+        <div className="flex items-center justify-between mb-4">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Portfolio</h1>
+          <CreatePortfolio />
+        </div>
+        <p className="text-sm text-gray-500 dark:text-gray-400">No portfolios yet. Create one to get started.</p>
       </div>
     )
   }

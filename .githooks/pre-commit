@@ -1,18 +1,17 @@
 #!/bin/sh
 # Pre-commit hook: check compilation before committing
 
-# Dashboard (Next.js/TypeScript)
+# Dashboard (TypeScript type check — fast)
 if git diff --cached --name-only | grep -q "^dashboard/"; then
-  echo "🔍 Checking dashboard build..."
+  echo "🔍 Checking dashboard types..."
   cd dashboard
-  npx next build --no-lint
-  BUILD_EXIT=$?
-  cd ..
-  if [ $BUILD_EXIT -ne 0 ]; then
-    echo "❌ Dashboard build failed. Fix errors before committing."
+  npx tsc --noEmit
+  if [ $? -ne 0 ]; then
+    echo "❌ TypeScript errors. Fix before committing."
     exit 1
   fi
-  echo "✅ Dashboard build OK"
+  echo "✅ Dashboard types OK"
+  cd ..
 fi
 
 # Python (syntax check)

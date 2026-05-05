@@ -207,8 +207,9 @@ def main():
     macro_latest = macro_df.iloc[-1].to_dict() if not macro_df.empty else {}
     port_summary = pm.summary(pid)
     conc = {c["ticker"]: c["weight"] for c in pm.concentration(pid)}
+    market_cash = port_summary["cash"].get(mcfg["currency"], 0)
     portfolio_state = {
-        "cash_pct": port_summary["cash"] / port_summary["total_value"] if port_summary["total_value"] else 1.0,
+        "cash_pct": market_cash / port_summary["total_value"] if port_summary["total_value"] else 1.0,
         "concentration": conc,
         "num_holdings": len(port_summary["holdings"]),
     }
@@ -237,7 +238,7 @@ def main():
     alloc_signals = [{"ticker": r["ticker"], "signal": r["latest_signal"],
                       "probability": r["latest_prob"], "price": r["latest_price"]} for r in results]
     trades = allocator(alloc_signals, port_summary["holdings"],
-                       port_summary["cash"], port_summary["total_value"], strategy)
+                       market_cash, port_summary["total_value"], strategy)
     if not trades:
         log.info("No trades (HOLD only)")
         for r in results:

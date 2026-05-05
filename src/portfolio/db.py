@@ -52,7 +52,7 @@ class Transaction(Base):
     price = Column(Float, nullable=False)
     total = Column(Float, nullable=False)
     timestamp = Column(Text, nullable=False)
-    __table_args__ = (CheckConstraint("action IN ('BUY','SELL')"),)
+    __table_args__ = (CheckConstraint("action IN ('BUY','SELL','DEPOSIT','WITHDRAW')"),)
 
 
 class Signal(Base):

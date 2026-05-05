@@ -266,7 +266,8 @@ Configure in `config.py` → `NOTIFICATIONS` dict.
 - Core stack: yfinance + pykrx + pandas + numpy + ta + torch + transformers + sqlalchemy + fredapi + python-dotenv
 - Secrets: `.env` file (python-dotenv), never committed to git
 - DB: Supabase PostgreSQL (shared across all nodes)
-- Storage: OCI Object Storage for models + results (via `Q_OCI_*` env vars)
+- Storage: OCI Object Storage for models + results (single bucket `qtradeBucket`, prefixes: `models/`, `results/`)
+- Multi-currency cash: per-currency tracking via transactions (DEPOSIT/WITHDRAW/EXCHANGE)
 - Notifications: auto-enabled if webhook/key is set in `.env`
 - First run of train.py will download FinBERT model (~400MB) for US market
 - Models saved to data/models/*.pt (one per ticker, both markets share directory)
@@ -350,4 +351,4 @@ Core logic complete ✅. Remaining: adapt for distributed deployment.
 | 9 | Trade recording form | ✅ |
 | 10 | Multi-currency (USD/KRW) | ✅ |
 | 11 | Portfolio comparison | ✅ |
-| 12 | Connect OCI Object Storage (set `OCI_RESULTS_URL` env var on Vercel) | ⬜ |
+| 12 | Connect OCI Object Storage (set `OCI_RESULTS_URL` env var on Vercel) | ✅ |

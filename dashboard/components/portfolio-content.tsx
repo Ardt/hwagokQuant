@@ -22,6 +22,7 @@ interface PortfolioData {
   holdings: any[]
   snapshots: any[]
   transactions: any[]
+  allTransactions: any[]
   watchlist: { ticker: string }[]
   sharpe: number
   maxDrawdown: number
@@ -63,7 +64,18 @@ export function PortfolioContent({ portfolios, names, rate }: {
                 <DeletePortfolio id={p.id} name={p.name} />
               </button>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Holdings: {formatCurrency(totalValue(p.holdings), baseCurrency)} | Cash: {formatCurrency(p.initial_capital - p.holdings.reduce((s: number, h: any) => s + h.shares * h.avg_cost, 0), baseCurrency)} | Total: {formatCurrency(totalValue(p.holdings) + p.initial_capital - p.holdings.reduce((s: number, h: any) => s + h.shares * h.avg_cost, 0), baseCurrency)}
+                Holdings: {formatCurrency(totalValue(p.holdings), baseCurrency)} | {(() => {
+                  const cash: Record<string, number> = { USD: 0, KRW: 0 }
+                  for (const t of p.allTransactions) {
+                    const isCash = t.ticker?.startsWith("CASH_")
+                    const cur = isCash ? t.ticker.replace("CASH_", "") : (/^\d{6}$/.test(t.ticker) ? "KRW" : "USD")
+                    if (t.action === "DEPOSIT" || (t.action === "EXCHANGE" && isCash)) cash[cur] += t.total
+                    else if (t.action === "WITHDRAW") cash[cur] -= t.total
+                    else if (t.action === "BUY") cash[cur] -= t.total
+                    else if (t.action === "SELL") cash[cur] += t.total
+                  }
+                  return Object.entries(cash).filter(([,v]) => v !== 0).map(([c, v]) => `${c}: ${c === "KRW" ? "₩" : "$"}${Math.round(v).toLocaleString()}`).join(" | ") || "Cash: $0"
+                })()} 
               </p>
               <StrategyEditor portfolioId={p.id} params={{
                 signal_threshold: p.signal_threshold ?? 0.5,
@@ -115,35 +127,65 @@ export function PortfolioContent({ portfolios, names, rate }: {
 
           {/* Holdings — native currency */}
           <div className="p-4 border-b border-gray-100 dark:border-[#1F1F23]">
-            {p.holdings.length ? (
-              <div className="space-y-1">
-                {p.holdings.map((h: any) => {
-                  const cur = (h.currency || "USD") as Currency
-                  const sym = CURRENCY_SYMBOLS[cur]
-                  const val = h.shares * (h.current_price || h.avg_cost)
-                  return (
-                    <div key={h.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1F1F23] transition-colors">
+            {(() => {
+              // Calculate cash per currency
+              const cashByCur: Record<string, number> = {}
+              for (const t of p.allTransactions) {
+                const isCash = t.ticker?.startsWith("CASH_")
+                const cur = isCash ? t.ticker.replace("CASH_", "") : (/^\d{6}$/.test(t.ticker) ? "KRW" : "USD")
+                if (t.action === "DEPOSIT" || (t.action === "EXCHANGE" && isCash)) cashByCur[cur] = (cashByCur[cur] || 0) + t.total
+                else if (t.action === "WITHDRAW") cashByCur[cur] = (cashByCur[cur] || 0) - t.total
+                else if (t.action === "BUY") cashByCur[cur] = (cashByCur[cur] || 0) - t.total
+                else if (t.action === "SELL") cashByCur[cur] = (cashByCur[cur] || 0) + t.total
+              }
+              const cashRows = Object.entries(cashByCur).filter(([,v]) => v !== 0)
+              const hasContent = p.holdings.length > 0 || cashRows.length > 0
+
+              return hasContent ? (
+                <div className="space-y-1">
+                  {/* Cash rows */}
+                  {cashRows.map(([cur, amount]) => (
+                    <div key={`cash-${cur}`} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-[#1A1A1E]">
                       <div>
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">{names[h.ticker] || h.ticker}</h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {names[h.ticker] ? h.ticker + " · " : ""}{h.shares} shares @ {sym}{Number(h.avg_cost).toLocaleString()}
-                        </p>
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">{cur}</h3>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">Cash</p>
                       </div>
                       <div className="text-right">
                         <span className="text-sm font-medium text-gray-900 dark:text-white">
-                          {sym}{Number(h.current_price || h.avg_cost).toLocaleString()}
+                          {cur === "KRW" ? "₩" : "$"}{Math.round(amount).toLocaleString()}
                         </span>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {formatCurrency(val, cur)}
-                        </p>
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 dark:text-gray-400">No holdings.</p>
-            )}
+                  ))}
+                  {/* Stock holdings */}
+                  {p.holdings.map((h: any) => {
+                    const cur = (h.currency || (/^\d{6}$/.test(h.ticker) ? "KRW" : "USD")) as Currency
+                    const sym = CURRENCY_SYMBOLS[cur]
+                    const val = h.shares * (h.current_price || h.avg_cost)
+                    return (
+                      <div key={h.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1F1F23] transition-colors">
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-900 dark:text-white">{names[h.ticker] || h.ticker}</h3>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {names[h.ticker] ? h.ticker + " · " : ""}{h.shares} shares @ {sym}{Number(h.avg_cost).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white">
+                            {sym}{Number(h.current_price || h.avg_cost).toLocaleString()}
+                          </span>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {formatCurrency(val, cur)}
+                          </p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No holdings.</p>
+              )
+            })()}
           </div>
 
           {/* Watchlist */}

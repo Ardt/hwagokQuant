@@ -69,7 +69,30 @@ export function TradeForm({ portfolios }: { portfolios: { id: number; name: stri
         <select value={form.action} onChange={(e) => setForm({ ...form, action: e.target.value })} className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white">
           <option value="BUY">BUY</option>
           <option value="SELL">SELL</option>
+          <option value="DEPOSIT">DEPOSIT</option>
+          <option value="WITHDRAW">WITHDRAW</option>
         </select>
+        {(form.action === "DEPOSIT" || form.action === "WITHDRAW") ? (
+          <>
+            <select value={form.ticker} onChange={(e) => setForm({ ...form, ticker: e.target.value })} required className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white">
+              <option value="">Currency</option>
+              <option value="USD">USD</option>
+              <option value="KRW">KRW</option>
+            </select>
+            <input placeholder="Amount" type="number" step="any" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white sm:col-span-2" />
+          </>
+        ) : form.action === "EXCHANGE" ? (
+          <>
+            <select value={form.ticker} onChange={(e) => setForm({ ...form, ticker: e.target.value })} required className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white">
+              <option value="">From</option>
+              <option value="USD">USD → KRW</option>
+              <option value="KRW">KRW → USD</option>
+            </select>
+            <input placeholder="Amount" type="number" step="any" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white" />
+            <input placeholder="Rate (e.g. 1400)" type="number" step="any" value={form.shares} onChange={(e) => setForm({ ...form, shares: e.target.value })} required className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white" />
+          </>
+        ) : (
+          <>
         <div className="relative">
           <input placeholder="Ticker or name" value={form.ticker} onChange={(e) => handleTickerChange(e.target.value)} onFocus={() => suggestions.length && setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} required className="w-full px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white" />
           {showSuggestions && (
@@ -85,6 +108,8 @@ export function TradeForm({ portfolios }: { portfolios: { id: number; name: stri
         </div>
         <input placeholder="Shares" type="number" value={form.shares} onChange={(e) => setForm({ ...form, shares: e.target.value })} required className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white" />
         <input placeholder="Price" type="number" step="any" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required className="px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white" />
+          </>
+        )}
       </div>
       <div className="flex items-center justify-between">
         <span className="text-xs text-gray-500 dark:text-gray-400">

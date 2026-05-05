@@ -168,9 +168,19 @@ def realized_pnl(portfolio_id: int) -> list[dict]:
 
 def _calc_cash(portfolio_id: int) -> float:
     p = db.get_portfolio(portfolio_id)
-    cash = p["initial_capital"]
+    cash = {"USD": 0.0, "KRW": 0.0}
     for t in db.get_transactions(portfolio_id):
-        cash += t["total"] if t["action"] == "SELL" else -t["total"]
+        ticker = t.get("ticker", "")
+        is_cash = ticker.startswith("CASH_")
+        cur = ticker.replace("CASH_", "") if is_cash else ("KRW" if ticker.isdigit() else "USD")
+        if t["action"] == "DEPOSIT" or (t["action"] == "EXCHANGE" and is_cash):
+            cash[cur] = cash.get(cur, 0) + t["total"]
+        elif t["action"] == "WITHDRAW":
+            cash[cur] = cash.get(cur, 0) - t["total"]
+        elif t["action"] == "SELL":
+            cash[cur] = cash.get(cur, 0) + t["total"]
+        elif t["action"] == "BUY":
+            cash[cur] = cash.get(cur, 0) - t["total"]
     return cash
 
 
@@ -180,8 +190,9 @@ def summary(portfolio_id: int) -> dict:
         return {}
     holdings = db.get_holdings(portfolio_id)
     cash = _calc_cash(portfolio_id)
+    total_cash = sum(cash.values())
     market_value = sum(h["shares"] * (h["current_price"] or h["avg_cost"]) for h in holdings)
-    total_value = cash + market_value
+    total_value = total_cash + market_value
     total_return = (total_value - portfolio["initial_capital"]) / portfolio["initial_capital"]
     return {"portfolio": portfolio, "holdings": holdings, "cash": cash,
             "market_value": market_value, "total_value": total_value, "total_return": total_return}

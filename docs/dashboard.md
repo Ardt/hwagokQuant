@@ -156,14 +156,14 @@ CREATE POLICY "Users see own portfolios" ON portfolios
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | Install `@supabase/ssr` | ⬜ |
-| 2 | Create server-side Supabase client (`lib/supabase-server.ts`) | ⬜ |
-| 3 | Add Next.js middleware (redirect unauthenticated → /login) | ⬜ |
-| 4 | Create `/login` page (email + password) | ⬜ |
-| 5 | Add logout button to top-nav | ⬜ |
-| 6 | Protect API routes (verify session) | ⬜ |
-| 7 | Add `user_id` column to tables + RLS policies | ⬜ |
-| 8 | Enable OAuth providers in Supabase dashboard | ⬜ |
+| 1 | Install `@supabase/ssr` | ✅ |
+| 2 | Create server-side Supabase client (`lib/supabase-server.ts`) | ✅ |
+| 3 | Add Next.js middleware (redirect unauthenticated → /login) | ✅ |
+| 4 | Create `/login` page (email + password) | ✅ |
+| 5 | Add logout button to top-nav | ✅ |
+| 6 | Protect API routes (verify session) | ✅ |
+| 7 | Add `user_id` column to tables + RLS policies | ✅ |
+| 8 | Enable OAuth providers in Supabase dashboard | ✅ |
 
 ### Dependencies
 
@@ -269,16 +269,16 @@ UPDATE portfolios SET user_id = 'your-auth-uuid';
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | Create `allowed_users` table in Supabase | ⬜ |
-| 2 | Enable Google/GitHub OAuth in Supabase dashboard | ⬜ |
-| 3 | Install `@supabase/ssr` | ⬜ |
-| 4 | Create server-side Supabase client with cookies | ⬜ |
-| 5 | Create `/login` page (OAuth buttons only) | ⬜ |
-| 6 | Create `/auth/callback` route (handle OAuth + allowlist check) | ⬜ |
-| 7 | Add middleware (session check + allowlist) | ⬜ |
-| 8 | Add logout button to top-nav | ⬜ |
-| 9 | Protect API routes | ⬜ |
-| 10 | Build and verify | ⬜ |
+| 1 | Create `allowed_users` table in Supabase | ✅ |
+| 2 | Enable Google/GitHub OAuth in Supabase dashboard | ✅ |
+| 3 | Install `@supabase/ssr` | ✅ |
+| 4 | Create server-side Supabase client with cookies | ✅ |
+| 5 | Create `/login` page (OAuth buttons only) | ✅ |
+| 6 | Create `/auth/callback` route (handle OAuth + allowlist check) | ✅ |
+| 7 | Add middleware (session check + allowlist) | ✅ |
+| 8 | Add logout button to top-nav | ✅ |
+| 9 | Protect API routes | ✅ |
+| 10 | Build and verify | ✅ |
 
 
 ---
@@ -314,9 +314,9 @@ Signals and trades are **decoupled** — signals inform, users decide.
 
 | # | Feature | Description | Status |
 |---|---------|-------------|--------|
-| 1 | Trade recording form | Log BUY/SELL with ticker, shares, price | ⬜ |
-| 2 | Transaction history | All trades (auto + manual) with source tag | ⬜ |
-| 3 | P&L view | Unrealized (holdings) + realized (closed trades) | ⬜ |
+| 1 | Trade recording form | Log BUY/SELL with ticker, shares, price | ✅ |
+| 2 | Transaction history | All trades (auto + manual) with source tag | ✅ |
+| 3 | P&L view | Unrealized (holdings) + realized (closed trades) | ✅ |
 | 4 | Signal vs actual comparison (future) | "What if I followed all signals?" vs actual | ⬜ |
 
 ### API
@@ -366,46 +366,47 @@ Date        | Ticker | Action | Shares | Price   | Total     | Source
 
 ---
 
-## Feature: Multi-Currency (USD/KRW)
+## Feature: Multi-Currency (USD/KRW) ✅
 
-### Concept
+### Implementation
 
-Holdings displayed in native currency. Portfolio total and equity curve displayed in switchable base currency.
+Cash tracked per currency via transactions. No separate cash table needed.
 
-### Display Rules
+### Transaction Actions
 
-| Field | Currency |
-|-------|----------|
-| Stock price, avg cost | Native (always) |
-| Holding value (shares × price) | Native (always) |
-| Portfolio total value | Base currency (switchable USD/KRW) |
-| Equity curve | Base currency (switchable) |
+| Action | Effect |
+|--------|--------|
+| `DEPOSIT` | Add cash (ticker = `CASH_USD` or `CASH_KRW`) |
+| `WITHDRAW` | Remove cash |
+| `BUY` | Decrease cash in stock's currency |
+| `SELL` | Increase cash in stock's currency |
+| `EXCHANGE` | 2 records: withdraw from source currency, deposit to target |
 
-### Schema
-
-```sql
-CREATE TABLE exchange_rates (
-    id SERIAL PRIMARY KEY,
-    pair TEXT NOT NULL,
-    rate FLOAT NOT NULL,
-    date DATE NOT NULL,
-    UNIQUE(pair, date)
-);
-
-ALTER TABLE portfolios ADD COLUMN base_currency TEXT DEFAULT 'USD';
-ALTER TABLE holdings ADD COLUMN currency TEXT DEFAULT 'USD';
-```
-
-### Exchange Rate: FRED DEXKOUS (daily, historical)
-
-### Conversion
+### Cash Calculation
 
 ```
-Current display: latest rate from exchange_rates WHERE pair='USD/KRW' ORDER BY date DESC LIMIT 1
-Equity curve: rate on snapshot date
-KRW → USD: value / rate
-USD → KRW: value * rate
+Per currency:
+  USD cash = sum(USD deposits + USD sells) - sum(USD withdrawals + USD buys)
+  KRW cash = sum(KRW deposits + KRW sells) - sum(KRW withdrawals + KRW buys)
+  EXCHANGE: adds to target currency, subtracts from source
 ```
+
+### Currency Detection
+
+- Ticker is 6 digits → KRW (e.g. 005930)
+- Otherwise → USD (e.g. AAPL)
+- DEPOSIT/WITHDRAW: user selects currency explicitly
+- EXCHANGE: user selects from/to + rate
+
+### Display
+
+```
+Holdings: $12,000 | USD: $5,000 | KRW: ₩3,000,000
+```
+
+### trade.py Integration
+
+`_calc_cash()` returns `{"USD": 5000, "KRW": 3000000}`. Allocator uses market-specific cash (USD for US, KRW for KRX).
 
 
 ---

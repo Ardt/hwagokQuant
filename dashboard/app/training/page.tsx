@@ -1,6 +1,6 @@
 import { fetchResults } from "@/lib/storage"
-import { BarChart2, TrendingUp, TrendingDown } from "lucide-react"
 import { PerformanceChart } from "@/components/performance-chart"
+import { ResultCards } from "@/components/result-cards"
 import { getTickerNames } from "@/lib/ticker-names"
 
 async function getResults(market: string) {
@@ -17,58 +17,6 @@ async function getResults(market: string) {
   })
 }
 
-function ResultCards({ results, title, names }: { results: any[]; title: string; names: Record<string, string> }) {
-  return (
-    <div className="space-y-4">
-      <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
-        <BarChart2 className="w-4 h-4" />
-        {title}
-        <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({results.length} tickers)</span>
-      </h2>
-
-      {results.length ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {results.map((r, i) => (
-            <div key={i} className="bg-white dark:bg-[#0F0F12] rounded-xl border border-gray-200 dark:border-[#1F1F23] p-4 space-y-3 hover:border-gray-300 dark:hover:border-[#2F2F33] transition-colors">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{names[r.ticker] || r.ticker}</h3>
-                  {names[r.ticker] && <p className="text-xs text-gray-500 dark:text-gray-400">{r.ticker}</p>}
-                </div>
-                {r.total_return > 0
-                  ? <TrendingUp className="w-4 h-4 text-emerald-500" />
-                  : <TrendingDown className="w-4 h-4 text-red-500" />}
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Return</p>
-                  <p className={`text-sm font-medium ${r.total_return > 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`}>
-                    {(r.total_return * 100).toFixed(1)}%
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Sharpe</p>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{r.sharpe_ratio?.toFixed(2)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Win Rate</p>
-                  <p className="text-sm font-medium text-gray-900 dark:text-white">{(r.win_rate * 100).toFixed(0)}%</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Max DD</p>
-                  <p className="text-sm font-medium text-red-600 dark:text-red-400">{(r.max_drawdown * 100).toFixed(1)}%</p>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <p className="text-sm text-gray-500 dark:text-gray-400">No results available. Configure OCI_RESULTS_URL.</p>
-      )}
-    </div>
-  )
-}
 
 export default async function TrainingPage() {
   const usResults = await getResults("us")
@@ -88,19 +36,25 @@ export default async function TrainingPage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Training Results</h1>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Training Results</h1>
+        <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+          Backtest performance from the latest model training. These show how each model performed on historical data — not live predictions.
+          For today's buy/sell signals, see the <a href="/signals" className="text-blue-500 hover:underline">Signals</a> page.
+        </p>
+      </div>
 
       {usResults.length > 0 && (
         <div className="bg-white dark:bg-[#0F0F12] rounded-xl border border-gray-200 dark:border-[#1F1F23] p-6">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">US — Top Returns</h2>
-          <PerformanceChart data={usResults} />
+          <PerformanceChart data={usResults} names={names} />
         </div>
       )}
 
       {krxResults.length > 0 && (
         <div className="bg-white dark:bg-[#0F0F12] rounded-xl border border-gray-200 dark:border-[#1F1F23] p-6">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">KRX — Top Returns</h2>
-          <PerformanceChart data={krxResults} />
+          <PerformanceChart data={krxResults} names={names} />
         </div>
       )}
 

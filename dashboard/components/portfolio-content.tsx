@@ -75,7 +75,7 @@ export function PortfolioContent({ portfolios, names, rate }: {
                     else if (t.action === "SELL") cash[cur] += t.total
                   }
                   return Object.entries(cash).filter(([,v]) => v !== 0).map(([c, v]) => `${c}: ${c === "KRW" ? "₩" : "$"}${Math.round(v).toLocaleString()}`).join(" | ") || "Cash: $0"
-                })()} 
+                })()}
               </p>
               <StrategyEditor portfolioId={p.id} params={{
                 signal_threshold: p.signal_threshold ?? 0.5,

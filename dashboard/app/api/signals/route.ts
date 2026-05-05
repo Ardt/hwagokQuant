@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   let query = supabase
     .from("signals")
     .select("*")
-    .order("created_at", { ascending: false })
+    .order("timestamp", { ascending: false })
     .limit(limit)
 
   if (portfolioId) query = query.eq("portfolio_id", portfolioId)

@@ -4,11 +4,13 @@ import { Signal, ArrowUpRight, ArrowDownLeft, Minus } from "lucide-react"
 
 export default async function SignalsPage() {
   const supabase = await createSupabaseServer()
-  const { data: signals } = await supabase
+  const { data: signals, error } = await supabase
     .from("signals")
     .select("*")
-    .order("created_at", { ascending: false })
+    .order("timestamp", { ascending: false })
     .limit(100)
+
+  if (error) console.error("Signals query error:", error)
 
   const tickers = Array.from(new Set(signals?.map((s) => s.ticker) || []))
   const names = await getTickerNames(tickers)

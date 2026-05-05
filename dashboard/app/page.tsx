@@ -12,8 +12,8 @@ export default async function Home() {
 
   const { data: recentSignals } = await supabase
     .from("signals")
-    .select("ticker, signal, probability, created_at")
-    .order("created_at", { ascending: false })
+    .select("ticker, signal, probability, timestamp")
+    .order("timestamp", { ascending: false })
     .limit(10)
 
   // Fetch holdings for each portfolio (for total value calc)

@@ -1,9 +1,9 @@
-import { supabase } from "@/lib/supabase"
 import { createSupabaseServer } from "@/lib/supabase-server"
 import { WATCHLIST_MAX_PER_MARKET } from "@/lib/constants"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
+  const supabase = await createSupabaseServer()
   const { searchParams } = new URL(req.url)
   const portfolioId = searchParams.get("portfolio_id")
   if (!portfolioId) return NextResponse.json({ error: "portfolio_id required" }, { status: 400 })
@@ -21,8 +21,8 @@ function detectMarket(ticker: string): string {
 }
 
 export async function POST(req: Request) {
-  const serverSupabase = await createSupabaseServer()
-  const { data: { user } } = await serverSupabase.auth.getUser()
+  const supabase = await createSupabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { portfolio_id, ticker } = await req.json()
@@ -31,16 +31,15 @@ export async function POST(req: Request) {
   const upperTicker = ticker.toUpperCase()
   const market = detectMarket(upperTicker)
 
-  // Check per-market limit
   const { data: existing } = await supabase
     .from("watchlist").select("ticker").eq("portfolio_id", portfolio_id)
-  const sameMarketCount = (existing || []).filter((w) => detectMarket(w.ticker) === market).length
+  const sameMarketCount = (existing || []).filter((w: any) => detectMarket(w.ticker) === market).length
   if (sameMarketCount >= WATCHLIST_MAX_PER_MARKET) {
     return NextResponse.json({ error: `Watchlist limit is ${WATCHLIST_MAX_PER_MARKET} per market (${market})` }, { status: 400 })
   }
 
   await supabase.from("watchlist").upsert(
-    { portfolio_id, ticker: upperTicker, added_at: new Date().toISOString() },
+    { portfolio_id, ticker: upperTicker, added_at: new Date().toISOString(), user_id: user.id },
     { onConflict: "portfolio_id,ticker" }
   )
 
@@ -48,8 +47,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const serverSupabase = await createSupabaseServer()
-  const { data: { user } } = await serverSupabase.auth.getUser()
+  const supabase = await createSupabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { portfolio_id, ticker } = await req.json()

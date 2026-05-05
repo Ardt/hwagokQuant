@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase"
+import { createSupabaseServer } from "@/lib/supabase-server"
 import { getTickerNames } from "@/lib/ticker-names"
 import { getLatestRate } from "@/lib/currency"
 import { computeSharpe, computeMaxDrawdown, computeRealizedPnl } from "@/lib/analytics"
@@ -7,6 +7,7 @@ import { CreatePortfolio } from "@/components/portfolio-manage"
 import { PortfolioContent } from "@/components/portfolio-content"
 
 export default async function PortfolioPage() {
+  const supabase = await createSupabaseServer()
   const { data: portfolios } = await supabase.from("portfolios").select("*")
 
   if (!portfolios?.length) {

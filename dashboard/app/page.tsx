@@ -1,10 +1,11 @@
-import { supabase } from "@/lib/supabase"
+import { createSupabaseServer } from "@/lib/supabase-server"
 import { getTickerNames } from "@/lib/ticker-names"
 import { getLatestRate } from "@/lib/currency"
 import { Signal } from "lucide-react"
 import { PortfolioOverview } from "@/components/portfolio-overview"
 
 export default async function Home() {
+  const supabase = await createSupabaseServer()
   const { data: portfolios } = await supabase
     .from("portfolios")
     .select("id, name, created_at")

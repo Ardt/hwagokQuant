@@ -1,8 +1,9 @@
-import { supabase } from "@/lib/supabase"
+import { createSupabaseServer } from "@/lib/supabase-server"
 import { computeSharpe, computeMaxDrawdown } from "@/lib/analytics"
 import { BarChart2 } from "lucide-react"
 
 export default async function ComparePage() {
+  const supabase = await createSupabaseServer()
   const { data: portfolios } = await supabase.from("portfolios").select("*")
 
   if (!portfolios?.length) {

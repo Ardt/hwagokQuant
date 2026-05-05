@@ -1,10 +1,9 @@
-import { supabase } from "@/lib/supabase"
 import { createSupabaseServer } from "@/lib/supabase-server"
 import { NextResponse } from "next/server"
 
 export async function PUT(req: Request) {
-  const serverSupabase = await createSupabaseServer()
-  const { data: { user } } = await serverSupabase.auth.getUser()
+  const supabase = await createSupabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { portfolio_id, signal_threshold, vix_threshold, max_position_pct, min_cash_pct, allocator_strategy } = await req.json()

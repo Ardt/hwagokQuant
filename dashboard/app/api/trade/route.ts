@@ -1,10 +1,9 @@
-import { supabase } from "@/lib/supabase"
 import { createSupabaseServer } from "@/lib/supabase-server"
 import { NextResponse } from "next/server"
 
 export async function POST(req: Request) {
-  const serverSupabase = await createSupabaseServer()
-  const { data: { user } } = await serverSupabase.auth.getUser()
+  const supabase = await createSupabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { portfolio_id, ticker, action, shares, price } = await req.json()
@@ -21,7 +20,7 @@ export async function POST(req: Request) {
 
   // Insert transaction
   await supabase.from("transactions").insert({
-    portfolio_id, ticker, action, shares, price, total, timestamp, source: "manual",
+    portfolio_id, ticker, action, shares, price, total, timestamp, source: "manual", user_id: user.id,
   })
 
   // Update holdings
@@ -37,7 +36,7 @@ export async function POST(req: Request) {
         .eq("id", existing.id)
     } else {
       await supabase.from("holdings").insert({
-        portfolio_id, ticker, shares, avg_cost: price, current_price: price, updated_at: timestamp,
+        portfolio_id, ticker, shares, avg_cost: price, current_price: price, updated_at: timestamp, user_id: user.id,
       })
     }
   } else {

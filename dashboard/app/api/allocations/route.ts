@@ -1,8 +1,8 @@
-import { supabase } from "@/lib/supabase"
 import { createSupabaseServer } from "@/lib/supabase-server"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
+  const supabase = await createSupabaseServer()
   const { searchParams } = new URL(req.url)
   const portfolioId = searchParams.get("portfolio_id")
   if (!portfolioId) return NextResponse.json({ error: "portfolio_id required" }, { status: 400 })
@@ -12,14 +12,12 @@ export async function GET(req: Request) {
   const { data: holdings } = await supabase
     .from("holdings").select("ticker, shares, current_price, avg_cost").eq("portfolio_id", portfolioId)
 
-  // Compute current weights
-  const totalValue = (holdings || []).reduce((s, h) => s + h.shares * (h.current_price || h.avg_cost), 0)
+  const totalValue = (holdings || []).reduce((s: number, h: any) => s + h.shares * (h.current_price || h.avg_cost), 0)
   const currentWeights: Record<string, number> = {}
   for (const h of holdings || []) {
-    currentWeights[h.ticker] = totalValue ? (h.shares * (h.current_price || h.avg_cost)) / totalValue : 0
+    currentWeights[(h as any).ticker] = totalValue ? (h.shares * (h.current_price || h.avg_cost)) / totalValue : 0
   }
 
-  // Rebalance suggestions
   const suggestions = (allocations || []).map((a: any) => {
     const current = currentWeights[a.ticker] || 0
     const drift = current - a.target_weight
@@ -30,8 +28,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const serverSupabase = await createSupabaseServer()
-  const { data: { user } } = await serverSupabase.auth.getUser()
+  const supabase = await createSupabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { portfolio_id, ticker, target_weight } = await req.json()
@@ -48,8 +46,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const serverSupabase = await createSupabaseServer()
-  const { data: { user } } = await serverSupabase.auth.getUser()
+  const supabase = await createSupabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { portfolio_id, ticker } = await req.json()

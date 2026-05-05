@@ -1,8 +1,8 @@
-import { supabase } from "@/lib/supabase"
 import { createSupabaseServer } from "@/lib/supabase-server"
 import { NextResponse } from "next/server"
 
 export async function GET() {
+  const supabase = await createSupabaseServer()
   const { data } = await supabase.from("settings").select("key, value, updated_at")
 
   const defaults: Record<string, string> = {
@@ -14,24 +14,17 @@ export async function GET() {
     vix_threshold: "30",
   }
 
-  const stored = Object.fromEntries((data || []).map((r) => [r.key, r.value]))
+  const stored = Object.fromEntries((data || []).map((r: any) => [r.key, r.value]))
   return NextResponse.json({ ...defaults, ...stored })
 }
 
 export async function PUT(req: Request) {
-  const serverSupabase = await createSupabaseServer()
-  const { data: { user } } = await serverSupabase.auth.getUser()
+  const supabase = await createSupabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const body = await req.json()
-  const { key, value } = body
-
-  if (!key || value === undefined) {
-    return NextResponse.json({ error: "key and value required" }, { status: 400 })
-  }
+  const { key, value } = await req.json()
+  if (!key || value === undefined) return NextResponse.json({ error: "key and value required" }, { status: 400 })
 
   const { data: existing } = await supabase
     .from("settings").select("id").eq("key", key).single()

@@ -1,8 +1,8 @@
-import { supabase } from "@/lib/supabase"
 import { createSupabaseServer } from "@/lib/supabase-server"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
+  const supabase = await createSupabaseServer()
   const { searchParams } = new URL(req.url)
   const id = searchParams.get("id")
 
@@ -22,8 +22,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const serverSupabase = await createSupabaseServer()
-  const { data: { user } } = await serverSupabase.auth.getUser()
+  const supabase = await createSupabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { name, initial_capital, base_currency } = await req.json()
@@ -34,6 +34,7 @@ export async function POST(req: Request) {
     name,
     initial_capital: initial_capital || 100000,
     base_currency: base_currency || "USD",
+    user_id: user.id,
     created_at: now,
     updated_at: now,
   }).select().single()
@@ -43,8 +44,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const serverSupabase = await createSupabaseServer()
-  const { data: { user } } = await serverSupabase.auth.getUser()
+  const supabase = await createSupabaseServer()
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await req.json()

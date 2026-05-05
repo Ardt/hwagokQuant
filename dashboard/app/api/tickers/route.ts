@@ -1,7 +1,8 @@
-import { supabase } from "@/lib/supabase"
+import { createSupabaseServer } from "@/lib/supabase-server"
 import { NextResponse } from "next/server"
 
 export async function GET(req: Request) {
+  const supabase = await createSupabaseServer()
   const { searchParams } = new URL(req.url)
   const q = searchParams.get("q") || ""
   const limit = parseInt(searchParams.get("limit") || "10")

@@ -1,8 +1,9 @@
-import { supabase } from "@/lib/supabase"
+import { createSupabaseServer } from "@/lib/supabase-server"
 import { getTickerNames } from "@/lib/ticker-names"
 import { Signal, ArrowUpRight, ArrowDownLeft, Minus } from "lucide-react"
 
 export default async function SignalsPage() {
+  const supabase = await createSupabaseServer()
   const { data: signals } = await supabase
     .from("signals")
     .select("*")

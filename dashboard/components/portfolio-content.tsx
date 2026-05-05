@@ -59,6 +59,7 @@ export function PortfolioContent({ portfolios, names, rate }: {
                 vix_threshold: p.vix_threshold ?? 30,
                 max_position_pct: p.max_position_pct ?? 0.25,
                 min_cash_pct: p.min_cash_pct ?? 0.10,
+                allocator_strategy: p.allocator_strategy ?? "equal_weight",
               }} />
             </div>
             <CurrencyToggle defaultCurrency={baseCurrency} onChange={setBaseCurrency} />
@@ -137,6 +138,7 @@ export function PortfolioContent({ portfolios, names, rate }: {
           <div className="p-4 border-b border-gray-100 dark:border-[#1F1F23]">
             <Watchlist portfolioId={p.id} items={p.watchlist} names={names} />
           </div>
+
 
           {/* Transactions */}
           {p.transactions.length > 0 && (

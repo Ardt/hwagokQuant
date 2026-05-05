@@ -17,10 +17,11 @@ export async function POST(req: Request) {
   // DEPOSIT/WITHDRAW: record as cash transaction
   if (action === "DEPOSIT" || action === "WITHDRAW") {
     const cashCurrency = ticker || "USD"
-    await supabase.from("transactions").insert({
+    const { error } = await supabase.from("transactions").insert({
       portfolio_id, ticker: `CASH_${cashCurrency}`, action, shares: 0, price: Number(price),
       total: Number(price), timestamp, user_id: user.id,
     })
+    if (error) return NextResponse.json({ error: error.message }, { status: 400 })
     return NextResponse.json({ ok: true, action, currency: cashCurrency, amount: Number(price) })
   }
 

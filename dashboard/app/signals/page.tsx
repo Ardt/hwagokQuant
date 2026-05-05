@@ -44,7 +44,7 @@ export default async function SignalsPage() {
               <div className="flex-1 flex items-center justify-between min-w-0">
                 <div>
                   <h3 className="text-sm font-medium text-gray-900 dark:text-white">{names[s.ticker] || s.ticker}</h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">{names[s.ticker] ? s.ticker + " · " : ""}{new Date(s.created_at).toLocaleString()}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{names[s.ticker] ? s.ticker + " · " : ""}{new Date(s.timestamp).toLocaleString()}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`text-xs font-medium ${

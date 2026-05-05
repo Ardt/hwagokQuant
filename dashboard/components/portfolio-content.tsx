@@ -18,6 +18,7 @@ interface PortfolioData {
   vix_threshold: number | null
   max_position_pct: number | null
   min_cash_pct: number | null
+  allocator_strategy: string | null
   holdings: any[]
   snapshots: any[]
   transactions: any[]

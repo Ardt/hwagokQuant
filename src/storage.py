@@ -7,10 +7,8 @@ from src import logger
 
 log = logger.get("storage")
 
-# Config from env vars (fill these in later)
 OCI_NAMESPACE = os.environ.get("Q_OCI_NAMESPACE", "")
-OCI_BUCKET_MODELS = os.environ.get("Q_OCI_BUCKET_MODELS", "q-models")
-OCI_BUCKET_RESULTS = os.environ.get("Q_OCI_BUCKET_RESULTS", "q-results")
+OCI_BUCKET = os.environ.get("Q_OCI_BUCKET", "qtradeBucket")
 
 _client = None
 
@@ -31,17 +29,17 @@ def enabled() -> bool:
                 os.path.exists(os.path.expanduser("~/.oci/config")))
 
 
-def upload_file(local_path: str, bucket: str, object_name: str = None):
+def upload_file(local_path: str, prefix: str, object_name: str = None):
     client = _get_client()
-    object_name = object_name or os.path.basename(local_path)
+    object_name = prefix + (object_name or os.path.basename(local_path))
     with open(local_path, "rb") as f:
-        client.put_object(OCI_NAMESPACE, bucket, object_name, f)
-    log.debug(f"Uploaded {object_name} → {bucket}")
+        client.put_object(OCI_NAMESPACE, OCI_BUCKET, object_name, f)
+    log.debug(f"Uploaded {object_name} → {OCI_BUCKET}")
 
 
-def download_file(bucket: str, object_name: str, local_path: str):
+def download_file(object_name: str, local_path: str):
     client = _get_client()
-    resp = client.get_object(OCI_NAMESPACE, bucket, object_name)
+    resp = client.get_object(OCI_NAMESPACE, OCI_BUCKET, object_name)
     os.makedirs(os.path.dirname(local_path) or ".", exist_ok=True)
     with open(local_path, "wb") as f:
         for chunk in resp.data.raw.stream(1024 * 1024):
@@ -55,8 +53,8 @@ def upload_models(models_dir: str = None):
     models_dir = models_dir or os.path.join(cfg.DATA_DIR, "models")
     files = globmod.glob(os.path.join(models_dir, "*.pt"))
     for f in files:
-        upload_file(f, OCI_BUCKET_MODELS)
-    log.info(f"Uploaded {len(files)} models to {OCI_BUCKET_MODELS}")
+        upload_file(f, "models/")
+    log.info(f"Uploaded {len(files)} models to {OCI_BUCKET}/models/")
 
 
 def upload_results(data_dir: str = None):
@@ -65,8 +63,8 @@ def upload_results(data_dir: str = None):
     data_dir = data_dir or cfg.DATA_DIR
     for pattern in ["training_results*.csv"]:
         for f in globmod.glob(os.path.join(data_dir, pattern)):
-            upload_file(f, OCI_BUCKET_RESULTS)
-    log.info(f"Uploaded results to {OCI_BUCKET_RESULTS}")
+            upload_file(f, "results/")
+    log.info(f"Uploaded results to {OCI_BUCKET}/results/")
 
 
 def download_models(models_dir: str = None):
@@ -75,11 +73,11 @@ def download_models(models_dir: str = None):
     client = _get_client()
     models_dir = models_dir or os.path.join(cfg.DATA_DIR, "models")
     os.makedirs(models_dir, exist_ok=True)
-    objects = client.list_objects(OCI_NAMESPACE, OCI_BUCKET_MODELS).data.objects
+    objects = client.list_objects(OCI_NAMESPACE, OCI_BUCKET, prefix="models/").data.objects
     count = 0
     for obj in objects:
         if obj.name.endswith(".pt"):
-            download_file(OCI_BUCKET_MODELS, obj.name,
-                          os.path.join(models_dir, obj.name))
+            local_name = obj.name.removeprefix("models/")
+            download_file(obj.name, os.path.join(models_dir, local_name))
             count += 1
-    log.info(f"Downloaded {count} models from {OCI_BUCKET_MODELS}")
+    log.info(f"Downloaded {count} models from {OCI_BUCKET}/models/")

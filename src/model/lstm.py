@@ -105,7 +105,11 @@ def save_model(model: LSTMModel, ticker: str):
     """Save model weights to data/models/{ticker}_lstm.pt"""
     os.makedirs(MODELS_DIR, exist_ok=True)
     path = os.path.join(MODELS_DIR, f"{ticker}_lstm.pt")
-    torch.save({"state_dict": model.state_dict(), "input_size": model.lstm.input_size}, path)
+    tmp_path = path + ".tmp"
+    torch.save({"state_dict": model.state_dict(), "input_size": model.lstm.input_size}, tmp_path)
+    if os.path.exists(path):
+        os.remove(path)
+    os.rename(tmp_path, path)
     log.info(f"Saved model: {path}")
 
 

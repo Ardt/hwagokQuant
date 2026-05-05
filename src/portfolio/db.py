@@ -8,7 +8,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 import config as cfg
 
-engine = create_engine(cfg.DB_URL, echo=False)
+engine = create_engine(cfg.DB_URL, echo=False, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
@@ -25,6 +25,7 @@ class Portfolio(Base):
     name = Column(Text, unique=True, nullable=False)
     description = Column(Text, default="")
     initial_capital = Column(Float, nullable=False, default=100_000)
+    allocator_strategy = Column(Text, default="equal_weight")
     created_at = Column(Text, nullable=False)
     updated_at = Column(Text, nullable=False)
 

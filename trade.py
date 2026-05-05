@@ -15,6 +15,7 @@ from src.model.ensemble import adjust_signals
 from src.backtest.engine import generate_signals
 from src.portfolio import manager as pm
 from src.portfolio.db import get_all_settings
+from src.model.strategies import get_allocator
 from src import notify
 from src import storage
 
@@ -22,6 +23,7 @@ logger.setup()
 log = logger.get("trade")
 
 AUTO_MODE = "--auto" in sys.argv
+STRATEGY_NAME = next((a.split("=")[1] for a in sys.argv if a.startswith("--strategy=")), None)
 
 
 def _get_collector(market: str):
@@ -124,38 +126,7 @@ def predict_ticker(ticker: str, df, macro_df, market: str, settings: dict = None
     }
 
 
-def plan_trades(portfolio_id: int, results: list[dict], market: str) -> list[dict]:
-    """Plan trades based on adjusted signals."""
-    s = pm.summary(portfolio_id)
-    cash = s["cash"]
-    holdings_map = {h["ticker"]: h for h in s["holdings"]}
 
-    buy_results = [r for r in results if r["latest_signal"] == 1]
-    trades = []
-
-    if buy_results:
-        cash_per_ticker = cash / len(buy_results)
-        for r in buy_results:
-            price = r["latest_price"]
-            shares = int(cash_per_ticker // price)
-            if shares > 0:
-                trades.append({"ticker": r["ticker"], "action": "BUY", "shares": shares,
-                               "price": price, "total": shares * price,
-                               "reason": f"confidence {r['latest_prob']:.1%}"})
-
-    for r in results:
-        if r["latest_signal"] == -1:
-            ticker = r["ticker"]
-            if ticker in holdings_map:
-                held = holdings_map[ticker]["shares"]
-                sell_ratio = 1 - r["latest_prob"]
-                shares = int(held * sell_ratio)
-                if shares > 0:
-                    price = r["latest_price"]
-                    trades.append({"ticker": ticker, "action": "SELL", "shares": shares,
-                                   "price": price, "total": shares * price,
-                                   "reason": f"sell {sell_ratio:.0%}"})
-    return trades
 
 
 def main():
@@ -257,8 +228,16 @@ def main():
         label = {1: "BUY", 0: "HOLD", -1: "SELL"}[r["latest_signal"]]
         print(f"  {r['ticker']}: {label} ({r['latest_prob']:.2%}, {currency} {r['latest_price']:,.0f})")
 
-    # Plan trades
-    trades = plan_trades(pid, results, market)
+    # Plan trades via allocator
+    strategy_name = STRATEGY_NAME or portfolio.get("allocator_strategy") or "equal_weight"
+    allocator = get_allocator(strategy_name)
+    log.info(f"Using allocation strategy: {strategy_name}")
+
+    port_summary = pm.summary(pid)
+    alloc_signals = [{"ticker": r["ticker"], "signal": r["latest_signal"],
+                      "probability": r["latest_prob"], "price": r["latest_price"]} for r in results]
+    trades = allocator(alloc_signals, port_summary["holdings"],
+                       port_summary["cash"], port_summary["total_value"], strategy)
     if not trades:
         log.info("No trades (HOLD only)")
         for r in results:

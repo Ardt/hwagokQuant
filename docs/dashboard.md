@@ -110,19 +110,19 @@ recharts
 
 | # | Task | Status |
 |---|------|--------|
-| 1 | Add Tailwind CSS + PostCSS + globals.css with CSS variables | ⬜ |
-| 2 | Add `cn()` utility (clsx + tailwind-merge) | ⬜ |
-| 3 | Add lucide-react icons | ⬜ |
-| 4 | Add next-themes + ThemeProvider + ThemeToggle | ⬜ |
-| 5 | Implement sidebar + top-nav layout (replace current nav) | ⬜ |
-| 6 | Redesign home page with card-based layout | ⬜ |
-| 7 | Redesign portfolio page (list-01 pattern) | ⬜ |
-| 8 | Redesign signals page (list-02 pattern) | ⬜ |
-| 9 | Redesign training page (list-03 pattern + recharts) | ⬜ |
-| 10 | Redesign control panel with shadcn/ui inputs | ⬜ |
-| 11 | Redesign status page with status cards | ⬜ |
-| 12 | Add recharts equity curve / backtest charts | ⬜ |
-| 13 | Mobile responsive testing | ⬜ |
+| 1 | Add Tailwind CSS + PostCSS + globals.css with CSS variables | ✅ |
+| 2 | Add `cn()` utility (clsx + tailwind-merge) | ✅ |
+| 3 | Add lucide-react icons | ✅ |
+| 4 | Add next-themes + ThemeProvider + ThemeToggle | ✅ |
+| 5 | Implement sidebar + top-nav layout (replace current nav) | ✅ |
+| 6 | Redesign home page with card-based layout | ✅ |
+| 7 | Redesign portfolio page (list-01 pattern) | ✅ |
+| 8 | Redesign signals page (list-02 pattern) | ✅ |
+| 9 | Redesign training page (list-03 pattern + recharts) | ✅ |
+| 10 | Redesign control panel with shadcn/ui inputs | ✅ |
+| 11 | Redesign status page with status cards | ✅ |
+| 12 | Add recharts equity curve / backtest charts | ✅ |
+| 13 | Mobile responsive testing | ✅ |
 
 
 ---
@@ -469,3 +469,30 @@ Currently sells are not configurable per-portfolio. Potential additions:
 | `take_profit_pct` | Auto-sell at X% gain | ⬜ |
 
 These would make the sell side equally configurable as the buy side.
+
+
+---
+
+## Future: Mobile App
+
+### Step 1 — PWA (Progressive Web App)
+
+Reuse existing Next.js dashboard. Works on both Android and iOS.
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | Add `manifest.json` (app name, icons, theme color) | ⬜ |
+| 2 | Add service worker (next-pwa or manual) | ⬜ |
+| 3 | Add install prompt banner | ⬜ |
+| 4 | Offline fallback page | ⬜ |
+| 5 | Web push notifications (Android full, iOS 16.4+ limited) | ⬜ |
+
+### Step 2 — Native Shell (Capacitor)
+
+Wrap PWA in native app for full push notifications + App Store/Play Store distribution.
+
+| # | Task | Status |
+|---|------|--------|
+| 1 | | ⬜ |
+| 2 | | ⬜ |
+| 3 | | ⬜ |

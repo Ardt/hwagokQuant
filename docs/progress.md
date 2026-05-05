@@ -90,6 +90,7 @@ def detect_market(ticker: str) -> str:
 | `src/data/cache.py` | Cache TTL management |
 | `src/model/lstm.py` | PyTorch LSTM (2-layer) with early stopping |
 | `src/model/ensemble.py` | Signal adjustment (macro risk + concentration) |
+| `src/model/strategies/` | Pluggable allocation strategies (plugin pattern) |
 | `src/backtest/engine.py` | Walk-forward backtest with stop-loss/take-profit |
 | `src/portfolio/db.py` | SQLAlchemy models + CRUD |
 | `src/portfolio/manager.py` | 24 portfolio functions |
@@ -208,6 +209,46 @@ Market is NOT stored in DB — inferred from ticker format at runtime.
 - [x] `matplotlib` — equity curve plots
 - [x] `lxml` / `html5lib` — Wikipedia scraping
 
+## Allocation Strategies (Plugin System)
+
+Pluggable trade allocation via `src/model/strategies/`. Drop a `.py` file → auto-registered.
+
+```
+src/model/strategies/
+├── __init__.py          # auto-loader + @strategy decorator
+├── equal_weight.py      # split cash equally among BUY signals
+└── rebalance.py         # trim weakest HOLDs + rebalance for new BUYs
+```
+
+### Available Strategies
+
+| Strategy | Behavior |
+|----------|----------|
+| `equal_weight` | Split cash equally among BUYs. No rebalancing. Default. |
+| `rebalance` | Trim overweight HOLDs (weakest first) to free cash for new BUYs. |
+
+### Selection Priority
+
+1. `--strategy=` CLI arg (override)
+2. Portfolio's `allocator_strategy` field in DB (per-portfolio)
+3. `"equal_weight"` (default)
+
+### Adding a New Strategy
+
+```python
+# src/model/strategies/my_strategy.py
+from . import strategy
+
+@strategy
+def my_strategy(signals, holdings, cash, portfolio_value, params):
+    # signals: [{ticker, signal (1/0/-1), probability, price}, ...]
+    # holdings: [{ticker, shares, avg_cost, current_price}, ...]
+    # Return: [{ticker, action, shares, price, total, reason}, ...]
+    ...
+```
+
+No other files need editing. Available immediately on next run.
+
 ## Notifications
 
 Sent on:
@@ -241,7 +282,7 @@ Configure in `config.py` → `NOTIFICATIONS` dict.
 | Service | Purpose | Tier | Status |
 |---------|---------|------|--------|
 | Supabase | PostgreSQL database (shared) | Free (500 MB) | ✅ Connected |
-| OCI Object Storage | Model files + training results | Free (10 GB) | ⬜ Pending |
+| OCI Object Storage | Model files + training results | Free (10 GB) | ✅ Connected |
 | Vercel | Dashboard hosting (Next.js) | Free (Hobby) | ✅ Deployed |
 | OCI A1 Compute | train.py server (daily) | Free (4 OCPU / 24 GB) | ⬜ Pending |
 | GitHub | Code repo + deploy trigger | Free | ✅ Connected |
@@ -294,14 +335,19 @@ Core logic complete ✅. Remaining: adapt for distributed deployment.
 | 3 | DB_URL → Supabase PostgreSQL | ✅ (shared with Train) |
 | 4 | Cron-compatible (headless, exit codes) | ✅ |
 
-### Portfolio/Dashboard Feature — Tasks (later)
+### Portfolio/Dashboard Feature — Tasks
 
 | # | Task | Status |
 |---|------|--------|
 | 1 | Scaffold Vercel dashboard (Next.js) | ✅ |
-| 2 | Read results from OCI Object Storage | ✅ (code ready, pending OCI bucket setup) |
+| 2 | Read results from OCI Object Storage | ✅ |
 | 3 | Read portfolio data from Supabase | ✅ |
 | 4 | Display: training results, backtest, holdings, P&L | ✅ |
 | 5 | Deploy to Vercel (GitHub auto-deploy) | ✅ |
 | 6 | Vercel Analytics + Speed Insights | ✅ |
-| 7 | Connect OCI Object Storage (set `OCI_RESULTS_URL` env var) | ⬜ |
+| 7 | UI Redesign (Tailwind + shadcn/ui + Recharts) | ✅ |
+| 8 | Auth (Supabase OAuth + allowlist) | ✅ |
+| 9 | Trade recording form | ✅ |
+| 10 | Multi-currency (USD/KRW) | ✅ |
+| 11 | Portfolio comparison | ✅ |
+| 12 | Connect OCI Object Storage (set `OCI_RESULTS_URL` env var on Vercel) | ⬜ |

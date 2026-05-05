@@ -1,6 +1,7 @@
 import { fetchResults } from "@/lib/storage"
 import { BarChart2, TrendingUp, TrendingDown } from "lucide-react"
 import { PerformanceChart } from "@/components/performance-chart"
+import { getTickerNames } from "@/lib/ticker-names"
 
 async function getResults(market: string) {
   const filename = market === "us" ? "training_results.csv" : `training_results_${market}.csv`
@@ -16,7 +17,7 @@ async function getResults(market: string) {
   })
 }
 
-function ResultCards({ results, title }: { results: any[]; title: string }) {
+function ResultCards({ results, title, names }: { results: any[]; title: string; names: Record<string, string> }) {
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
@@ -30,7 +31,10 @@ function ResultCards({ results, title }: { results: any[]; title: string }) {
           {results.map((r, i) => (
             <div key={i} className="bg-white dark:bg-[#0F0F12] rounded-xl border border-gray-200 dark:border-[#1F1F23] p-4 space-y-3 hover:border-gray-300 dark:hover:border-[#2F2F33] transition-colors">
               <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{r.ticker}</h3>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{names[r.ticker] || r.ticker}</h3>
+                  {names[r.ticker] && <p className="text-xs text-gray-500 dark:text-gray-400">{r.ticker}</p>}
+                </div>
                 {r.total_return > 0
                   ? <TrendingUp className="w-4 h-4 text-emerald-500" />
                   : <TrendingDown className="w-4 h-4 text-red-500" />}
@@ -70,6 +74,9 @@ export default async function TrainingPage() {
   const usResults = await getResults("us")
   const krxResults = await getResults("krx")
 
+  const allTickers = [...usResults, ...krxResults].map((r) => r.ticker)
+  const names = await getTickerNames(allTickers)
+
   return (
     <div className="space-y-8">
       <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Training Results</h1>
@@ -88,8 +95,8 @@ export default async function TrainingPage() {
         </div>
       )}
 
-      <ResultCards results={usResults} title="US Market" />
-      <ResultCards results={krxResults} title="KRX Market" />
+      <ResultCards results={usResults} title="US Market" names={names} />
+      <ResultCards results={krxResults} title="KRX Market" names={names} />
     </div>
   )
 }

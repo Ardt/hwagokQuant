@@ -8,6 +8,7 @@ interface StrategyParams {
   vix_threshold: number
   max_position_pct: number
   min_cash_pct: number
+  allocator_strategy: string
 }
 
 export function StrategyEditor({ portfolioId, params }: { portfolioId: number; params: StrategyParams }) {
@@ -41,6 +42,18 @@ export function StrategyEditor({ portfolioId, params }: { portfolioId: number; p
         <Settings className="w-3 h-3" /> Strategy Parameters
       </h4>
       <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <label className="text-xs font-medium text-gray-900 dark:text-white">Allocation Strategy</label>
+          <p className="text-[10px] text-gray-400 mb-1">How trades are sized and positions rebalanced</p>
+          <select
+            value={form.allocator_strategy || "equal_weight"}
+            onChange={(e) => setForm({ ...form, allocator_strategy: e.target.value })}
+            className="w-full px-2 py-1.5 text-xs rounded-md border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white"
+          >
+            <option value="equal_weight">Equal Weight — split cash equally among BUYs</option>
+            <option value="rebalance">Rebalance — trim weak HOLDs + equal weight</option>
+          </select>
+        </div>
         <Field label="Signal Threshold" desc="Buy above this confidence (0.1–0.9)" value={form.signal_threshold} min={0.1} max={0.9} step={0.05} onChange={(v) => setForm({ ...form, signal_threshold: v })} />
         <Field label="VIX Threshold" desc="Reduce buys above this VIX (15–50)" value={form.vix_threshold} min={15} max={50} step={1} onChange={(v) => setForm({ ...form, vix_threshold: v })} />
         <Field label="Max Position %" desc="Max weight per ticker (0.05–1.0)" value={form.max_position_pct} min={0.05} max={1.0} step={0.05} onChange={(v) => setForm({ ...form, max_position_pct: v })} />

@@ -146,7 +146,7 @@ No CLI flags needed — market inferred from portfolio tickers.
 | Service | Purpose | Tier | Status |
 |---------|---------|------|--------|
 | Supabase | PostgreSQL database | Free (500 MB) | ✅ |
-| OCI Object Storage | Models + results | Free (10 GB) | ⬜ |
+| OCI Object Storage | Models + results | Free (10 GB) | ✅ |
 | OCI A1 Compute | Training server | Free (4 OCPU / 24 GB) | ⬜ |
 | Vercel | Dashboard hosting | Free (Hobby) | ✅ |
 | GitHub | Code repo + deploy | Free | ✅ |
@@ -171,11 +171,10 @@ Q_DB_URL=postgresql+psycopg2://postgres.REF:PASS@HOST:5432/postgres?sslmode=requ
 ```bash
 # .env
 Q_OCI_NAMESPACE=your_namespace
-Q_OCI_BUCKET_MODELS=q-models
-Q_OCI_BUCKET_RESULTS=q-results
+Q_OCI_BUCKET=qtradeBucket
 ```
-- Create buckets: `q-models`, `q-results`
-- Pre-authenticated request URL for Vercel dashboard
+- Single bucket with prefix-based organization: `models/`, `results/`
+- Pre-authenticated request URL for Vercel dashboard (scope to `results/` prefix)
 
 ### Notifications
 ```bash

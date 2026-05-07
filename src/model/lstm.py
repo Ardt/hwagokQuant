@@ -28,11 +28,8 @@ class LSTMModel(nn.Module):
     def forward(self, x):
         out, _ = self.lstm(x)
         raw = self.fc(out[:, -1, :])
-        if self.fc.out_features == 1:
-            return torch.sigmoid(raw)
-        # 3 outputs: [sigmoid(direction), high%, low%]
         direction = torch.sigmoid(raw[:, 0:1])
-        high_low = raw[:, 1:]  # linear (% change)
+        high_low = raw[:, 1:]
         return torch.cat([direction, high_low], dim=1)
 
 
@@ -52,20 +49,17 @@ def _combined_loss(pred, target):
     return bce + mse
 
 
-def train_model(X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray, y_val: np.ndarray, output_size: int = 3):
+def train_model(X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray, y_val: np.ndarray):
     """Train LSTM model with early stopping. Returns trained model and loss history."""
-    model = LSTMModel(input_size=X_train.shape[2], output_size=output_size).to(device)
+    model = LSTMModel(input_size=X_train.shape[2]).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.LEARNING_RATE)
-
-    if output_size == 1:
-        criterion = nn.BCELoss()
-    else:
-        criterion = _combined_loss
+    criterion = _combined_loss
 
     train_loader = make_dataloader(X_train, y_train, shuffle=True)
     val_loader = make_dataloader(X_val, y_val, shuffle=False)
 
     best_val_loss, patience, counter = float("inf"), 10, 0
+    best_state = model.state_dict().copy()
     history = {"train_loss": [], "val_loss": []}
 
     for epoch in range(cfg.EPOCHS):
@@ -112,14 +106,11 @@ def train_model(X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray, y_v
 
 
 def predict(model: LSTMModel, X: np.ndarray) -> np.ndarray:
-    """Run inference. Returns (N,) for 1-output or (N,3) for 3-output model."""
+    """Run inference. Returns (N, 3): [direction_prob, high%, low%]."""
     model.eval()
     X_t = torch.FloatTensor(X).to(device)
     with torch.no_grad():
-        out = model(X_t).cpu().numpy()
-    if out.shape[1] == 1:
-        return out.flatten()
-    return out
+        return model(X_t).cpu().numpy()
 
 
 def save_model(model: LSTMModel, ticker: str):
@@ -141,10 +132,9 @@ def load_model(ticker: str) -> LSTMModel | None:
     if not os.path.exists(path):
         return None
     checkpoint = torch.load(path, map_location=device, weights_only=True)
-    output_size = checkpoint.get("output_size", 1)
-    model = LSTMModel(input_size=checkpoint["input_size"], output_size=output_size).to(device)
+    model = LSTMModel(input_size=checkpoint["input_size"]).to(device)
     model.load_state_dict(checkpoint["state_dict"])
-    log.info(f"Loaded model: {path} (output_size={output_size})")
+    log.info(f"Loaded model: {path}")
     return model
 
 

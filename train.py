@@ -75,6 +75,9 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
 
     features, scaler = prepare_features(df)
     target = build_target_3output(df)
+    # Last row has NaN from shift(-1), exclude it
+    features = features[:-1]
+    target = target[:-1]
     X, y = create_sequences(features, target, cfg.SEQUENCE_LENGTH)
 
     if incremental:
@@ -91,10 +94,7 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
             import torch
 
             optimizer = torch.optim.Adam(model.parameters(), lr=INCREMENTAL_LR)
-            if model.fc.out_features == 1:
-                criterion = torch.nn.BCELoss()
-            else:
-                criterion = _combined_loss
+            criterion = _combined_loss
             train_loader = make_dataloader(X_train, y_train, shuffle=True)
 
             model.train()
@@ -110,7 +110,7 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
 
             save_model(model, ticker)
             raw = predict(model, X_val)
-            probs = raw[:, 0] if raw.ndim == 2 else raw
+            probs = raw[:, 0]
             signals = generate_signals(probs)
             test_prices = df["Close"].iloc[-30:]
             result = backtest(test_prices, signals, mcfg["initial_capital"])
@@ -131,7 +131,7 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
     save_model(model, ticker)
 
     raw = predict(model, X_val)
-    probs = raw[:, 0] if raw.ndim == 2 else raw
+    probs = raw[:, 0]
     signals = generate_signals(probs)
     test_prices = df["Close"].iloc[split + cfg.SEQUENCE_LENGTH:]
     result = backtest(test_prices, signals, mcfg["initial_capital"])

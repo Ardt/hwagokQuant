@@ -199,6 +199,16 @@ pip install -r requirements.txt
 cp .env.example .env  # fill in secrets
 ```
 
+### GPU PC (5600X + 3060Ti)
+```bash
+git clone <repo> ~/q && cd ~/q
+python -m venv venv && venv\Scripts\activate
+pip install -r requirements-gpu.txt
+pip install -r requirements.txt
+cp .env.example .env  # fill in secrets
+python train.py --full  # ~1.5-3 hours for all tickers
+```
+
 ### Raspberry Pi (Pi 4)
 ```bash
 sudo apt update && sudo apt install -y python3 python3-venv git

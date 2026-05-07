@@ -19,7 +19,7 @@ PYTHON_FILES=$(git diff --cached --name-only | grep '\.py$')
 if [ -n "$PYTHON_FILES" ]; then
   echo "🔍 Checking Python syntax..."
   for f in $PYTHON_FILES; do
-    python -c "import ast; ast.parse(open('$f').read())" 2>&1
+    python -c "import ast; ast.parse(open('$f', encoding='utf-8').read())" 2>&1
     if [ $? -ne 0 ]; then
       echo "❌ Syntax error in $f"
       exit 1

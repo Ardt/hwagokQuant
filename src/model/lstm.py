@@ -1,4 +1,4 @@
-"""LSTM model: PyTorch-based binary classifier for price direction."""
+"""LSTM model: PyTorch-based classifier + regression for price direction and range."""
 
 import os
 import numpy as np
@@ -14,7 +14,7 @@ MODELS_DIR = os.path.join(cfg.DATA_DIR, "models")
 
 
 class LSTMModel(nn.Module):
-    def __init__(self, input_size: int):
+    def __init__(self, input_size: int, output_size: int = 3):
         super().__init__()
         self.lstm = nn.LSTM(
             input_size=input_size,
@@ -23,25 +23,44 @@ class LSTMModel(nn.Module):
             dropout=cfg.DROPOUT,
             batch_first=True,
         )
-        self.fc = nn.Linear(cfg.HIDDEN_SIZE, 1)
+        self.fc = nn.Linear(cfg.HIDDEN_SIZE, output_size)
 
     def forward(self, x):
         out, _ = self.lstm(x)
-        return torch.sigmoid(self.fc(out[:, -1, :]))
+        raw = self.fc(out[:, -1, :])
+        if self.fc.out_features == 1:
+            return torch.sigmoid(raw)
+        # 3 outputs: [sigmoid(direction), high%, low%]
+        direction = torch.sigmoid(raw[:, 0:1])
+        high_low = raw[:, 1:]  # linear (% change)
+        return torch.cat([direction, high_low], dim=1)
 
 
 def make_dataloader(X: np.ndarray, y: np.ndarray, shuffle: bool = True) -> DataLoader:
-    """Create a DataLoader from numpy arrays."""
+    """Create a DataLoader from numpy arrays. y can be (N,) or (N,3)."""
     X_t = torch.FloatTensor(X)
-    y_t = torch.FloatTensor(y).unsqueeze(1)
+    y_t = torch.FloatTensor(y)
+    if y_t.ndim == 1:
+        y_t = y_t.unsqueeze(1)
     return DataLoader(TensorDataset(X_t, y_t), batch_size=cfg.BATCH_SIZE, shuffle=shuffle)
 
 
-def train_model(X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray, y_val: np.ndarray):
+def _combined_loss(pred, target):
+    """BCE for direction (col 0) + MSE for high%/low% (cols 1,2)."""
+    bce = nn.functional.binary_cross_entropy(pred[:, 0], target[:, 0])
+    mse = nn.functional.mse_loss(pred[:, 1:], target[:, 1:])
+    return bce + mse
+
+
+def train_model(X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray, y_val: np.ndarray, output_size: int = 3):
     """Train LSTM model with early stopping. Returns trained model and loss history."""
-    model = LSTMModel(input_size=X_train.shape[2]).to(device)
-    criterion = nn.BCELoss()
+    model = LSTMModel(input_size=X_train.shape[2], output_size=output_size).to(device)
     optimizer = torch.optim.Adam(model.parameters(), lr=cfg.LEARNING_RATE)
+
+    if output_size == 1:
+        criterion = nn.BCELoss()
+    else:
+        criterion = _combined_loss
 
     train_loader = make_dataloader(X_train, y_train, shuffle=True)
     val_loader = make_dataloader(X_val, y_val, shuffle=False)
@@ -93,12 +112,14 @@ def train_model(X_train: np.ndarray, y_train: np.ndarray, X_val: np.ndarray, y_v
 
 
 def predict(model: LSTMModel, X: np.ndarray) -> np.ndarray:
-    """Run inference, return probabilities."""
+    """Run inference. Returns (N,) for 1-output or (N,3) for 3-output model."""
     model.eval()
     X_t = torch.FloatTensor(X).to(device)
     with torch.no_grad():
-        probs = model(X_t).cpu().numpy().flatten()
-    return probs
+        out = model(X_t).cpu().numpy()
+    if out.shape[1] == 1:
+        return out.flatten()
+    return out
 
 
 def save_model(model: LSTMModel, ticker: str):
@@ -106,7 +127,8 @@ def save_model(model: LSTMModel, ticker: str):
     os.makedirs(MODELS_DIR, exist_ok=True)
     path = os.path.join(MODELS_DIR, f"{ticker}_lstm.pt")
     tmp_path = path + ".tmp"
-    torch.save({"state_dict": model.state_dict(), "input_size": model.lstm.input_size}, tmp_path)
+    torch.save({"state_dict": model.state_dict(), "input_size": model.lstm.input_size,
+                "output_size": model.fc.out_features}, tmp_path)
     if os.path.exists(path):
         os.remove(path)
     os.rename(tmp_path, path)
@@ -119,9 +141,10 @@ def load_model(ticker: str) -> LSTMModel | None:
     if not os.path.exists(path):
         return None
     checkpoint = torch.load(path, map_location=device, weights_only=True)
-    model = LSTMModel(input_size=checkpoint["input_size"]).to(device)
+    output_size = checkpoint.get("output_size", 1)
+    model = LSTMModel(input_size=checkpoint["input_size"], output_size=output_size).to(device)
     model.load_state_dict(checkpoint["state_dict"])
-    log.info(f"Loaded model: {path}")
+    log.info(f"Loaded model: {path} (output_size={output_size})")
     return model
 
 

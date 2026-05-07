@@ -8,7 +8,7 @@ from src import logger
 from src.market import detect_market, get_config
 from src.data.features import (
     add_technical_indicators, prepare_features,
-    create_sequences, build_target,
+    create_sequences, build_target, build_target_3output,
 )
 from src.model.lstm import train_model, predict, save_model, load_model, has_saved_model
 from src.backtest.engine import generate_signals, backtest
@@ -74,7 +74,7 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
         return None
 
     features, scaler = prepare_features(df)
-    target = build_target(df)
+    target = build_target_3output(df)
     X, y = create_sequences(features, target, cfg.SEQUENCE_LENGTH)
 
     if incremental:
@@ -87,11 +87,14 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
             X_val, y_val = X[-30:], y[-30:]
 
             model = load_model(ticker)
-            from src.model.lstm import make_dataloader, device
+            from src.model.lstm import make_dataloader, device, _combined_loss
             import torch
 
             optimizer = torch.optim.Adam(model.parameters(), lr=INCREMENTAL_LR)
-            criterion = torch.nn.BCELoss()
+            if model.fc.out_features == 1:
+                criterion = torch.nn.BCELoss()
+            else:
+                criterion = _combined_loss
             train_loader = make_dataloader(X_train, y_train, shuffle=True)
 
             model.train()
@@ -106,7 +109,8 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
                     loss_sum += loss.item()
 
             save_model(model, ticker)
-            probs = predict(model, X_val)
+            raw = predict(model, X_val)
+            probs = raw[:, 0] if raw.ndim == 2 else raw
             signals = generate_signals(probs)
             test_prices = df["Close"].iloc[-30:]
             result = backtest(test_prices, signals, mcfg["initial_capital"])
@@ -126,7 +130,8 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
     model, history = train_model(X_train, y_train, X_val, y_val)
     save_model(model, ticker)
 
-    probs = predict(model, X_val)
+    raw = predict(model, X_val)
+    probs = raw[:, 0] if raw.ndim == 2 else raw
     signals = generate_signals(probs)
     test_prices = df["Close"].iloc[split + cfg.SEQUENCE_LENGTH:]
     result = backtest(test_prices, signals, mcfg["initial_capital"])

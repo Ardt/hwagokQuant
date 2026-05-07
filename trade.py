@@ -115,15 +115,30 @@ def predict_ticker(ticker: str, df, macro_df, market: str, settings: dict = None
     X, _ = create_sequences(features, target, cfg.SEQUENCE_LENGTH)
 
     model = load_model(ticker)
-    probs = predict(model, X[-30:])
+    raw_output = predict(model, X[-30:])
+
+    # Handle both 1-output (N,) and 3-output (N,3) models
+    is_3output = raw_output.ndim == 2 and raw_output.shape[1] == 3
+    probs = raw_output[:, 0] if is_3output else raw_output
     signals = generate_signals(probs, threshold=float(settings.get("signal_threshold", 0.5)))
 
-    return {
+    latest_price = float(df["Close"].iloc[-1])
+    result = {
         "ticker": ticker,
         "latest_signal": int(signals[-1]),
         "latest_prob": float(probs[-1]),
-        "latest_price": float(df["Close"].iloc[-1]),
+        "latest_price": latest_price,
+        "predicted_high": None,
+        "predicted_low": None,
     }
+
+    if is_3output:
+        from src.market import round_to_tick
+        high_pct, low_pct = float(raw_output[-1][1]), float(raw_output[-1][2])
+        result["predicted_high"] = round_to_tick(latest_price * (1 + high_pct), market)
+        result["predicted_low"] = round_to_tick(latest_price * (1 + low_pct), market)
+
+    return result
 
 
 
@@ -242,7 +257,8 @@ def main():
     if not trades:
         log.info("No trades (HOLD only)")
         for r in results:
-            pm.record_signal(pid, r["ticker"], r["latest_signal"], r["latest_prob"])
+            pm.record_signal(pid, r["ticker"], r["latest_signal"], r["latest_prob"],
+                             predicted_high=r.get("predicted_high"), predicted_low=r.get("predicted_low"))
         pm.take_snapshot(pid)
         return
 
@@ -260,7 +276,8 @@ def main():
     # Execute
     log.info(f"Paper trading {len(trades)} orders")
     for r in results:
-        pm.record_signal(pid, r["ticker"], r["latest_signal"], r["latest_prob"])
+        pm.record_signal(pid, r["ticker"], r["latest_signal"], r["latest_prob"],
+                         predicted_high=r.get("predicted_high"), predicted_low=r.get("predicted_low"))
 
     holdings_before = {h["ticker"]: h for h in pm.summary(pid)["holdings"]}
     trade_lines = []

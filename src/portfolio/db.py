@@ -62,6 +62,8 @@ class Signal(Base):
     ticker = Column(Text, nullable=False)
     signal = Column(Integer, nullable=False)
     probability = Column(Float)
+    predicted_high = Column(Float)
+    predicted_low = Column(Float)
     source = Column(Text)
     timestamp = Column(Text, nullable=False)
     __table_args__ = (CheckConstraint("signal IN (-1,0,1)"),)
@@ -199,10 +201,11 @@ def get_transactions(portfolio_id: int, ticker: str = None) -> list[dict]:
 
 # --- Signals ---
 
-def add_signal(portfolio_id: int, ticker: str, signal: int, probability: float = None, source: str = None) -> int:
+def add_signal(portfolio_id: int, ticker: str, signal: int, probability: float = None, source: str = None, predicted_high: float = None, predicted_low: float = None) -> int:
     with get_session() as s:
         sig = Signal(portfolio_id=portfolio_id, ticker=ticker, signal=signal,
-                     probability=probability, source=source, timestamp=_now())
+                     probability=probability, predicted_high=predicted_high,
+                     predicted_low=predicted_low, source=source, timestamp=_now())
         s.add(sig)
         s.commit()
         return sig.id

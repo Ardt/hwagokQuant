@@ -47,6 +47,11 @@ export default async function SignalsPage() {
                   <p className="text-xs text-gray-500 dark:text-gray-400">{names[s.ticker] ? s.ticker + " · " : ""}{new Date(s.timestamp).toLocaleString()}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  {s.predicted_high != null && s.predicted_low != null && (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">
+                      {Number(s.predicted_low).toLocaleString()} ~ {Number(s.predicted_high).toLocaleString()}
+                    </span>
+                  )}
                   <span className={`text-xs font-medium ${
                     s.signal === 1 ? "text-emerald-600 dark:text-emerald-400"
                     : s.signal === -1 ? "text-red-600 dark:text-red-400"

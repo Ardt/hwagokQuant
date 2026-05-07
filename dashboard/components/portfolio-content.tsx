@@ -8,6 +8,7 @@ import { EquityChart } from "./equity-chart"
 import { Watchlist } from "./watchlist"
 import { DeletePortfolio } from "./portfolio-manage"
 import { StrategyEditor } from "./strategy-editor"
+import { HoldingsTable } from "./holdings-table"
 
 interface PortfolioData {
   id: number
@@ -125,7 +126,7 @@ export function PortfolioContent({ portfolios, names, rate }: {
             </div>
           )}
 
-          {/* Holdings — native currency */}
+          {/* Holdings */}
           <div className="p-4 border-b border-gray-100 dark:border-[#1F1F23]">
             {(() => {
               // Calculate cash per currency
@@ -139,10 +140,9 @@ export function PortfolioContent({ portfolios, names, rate }: {
                 else if (t.action === "SELL") cashByCur[cur] = (cashByCur[cur] || 0) + t.total
               }
               const cashRows = Object.entries(cashByCur).filter(([,v]) => v !== 0)
-              const hasContent = p.holdings.length > 0 || cashRows.length > 0
 
-              return hasContent ? (
-                <div className="space-y-1">
+              return (
+                <div className="space-y-3">
                   {/* Cash rows */}
                   {cashRows.map(([cur, amount]) => (
                     <div key={`cash-${cur}`} className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-[#1A1A1E]">
@@ -157,33 +157,14 @@ export function PortfolioContent({ portfolios, names, rate }: {
                       </div>
                     </div>
                   ))}
-                  {/* Stock holdings */}
-                  {p.holdings.map((h: any) => {
-                    const cur = (h.currency || (/^\d{6}$/.test(h.ticker) ? "KRW" : "USD")) as Currency
-                    const sym = CURRENCY_SYMBOLS[cur]
-                    const val = h.shares * (h.current_price || h.avg_cost)
-                    return (
-                      <div key={h.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-[#1F1F23] transition-colors">
-                        <div>
-                          <h3 className="text-sm font-medium text-gray-900 dark:text-white">{names[h.ticker] || h.ticker}</h3>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {names[h.ticker] ? h.ticker + " · " : ""}{h.shares} shares @ {sym}{Number(h.avg_cost).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-sm font-medium text-gray-900 dark:text-white">
-                            {sym}{Number(h.current_price || h.avg_cost).toLocaleString()}
-                          </span>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {formatCurrency(val, cur)}
-                          </p>
-                        </div>
-                      </div>
-                    )
-                  })}
+                  {/* Holdings table with accordion */}
+                  <HoldingsTable
+                    holdings={p.holdings}
+                    transactions={p.allTransactions.filter((t: any) => !t.ticker?.startsWith("CASH_"))}
+                    portfolioId={p.id}
+                    names={names}
+                  />
                 </div>
-              ) : (
-                <p className="text-sm text-gray-500 dark:text-gray-400">No holdings.</p>
               )
             })()}
           </div>

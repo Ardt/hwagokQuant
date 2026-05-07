@@ -58,8 +58,8 @@ def sell(portfolio_id: int, ticker: str, shares: float, price: float):
         log.debug(f"SELL {shares} {ticker} @ ${price:.2f} → holding {remaining} shares")
 
 
-def record_signal(portfolio_id: int, ticker: str, signal: int, probability: float = None, source: str = "lstm_v1"):
-    return db.add_signal(portfolio_id, ticker, signal, probability, source)
+def record_signal(portfolio_id: int, ticker: str, signal: int, probability: float = None, source: str = "lstm_v1", predicted_high: float = None, predicted_low: float = None):
+    return db.add_signal(portfolio_id, ticker, signal, probability, source, predicted_high, predicted_low)
 
 
 def record_backtest(portfolio_id: int, ticker: str, metrics: dict):

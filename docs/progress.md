@@ -57,6 +57,20 @@ DATA FLOW — trade.py:
 - [x] Secrets management (dotenv)
 - [x] Dashboard (Next.js / Vercel)
 - [ ] Optimization and tuning
+- [ ] 3-output LSTM model (direction + predicted high% + low%)
+  - [x] Modify LSTMModel: output size 1 → 3
+  - [x] Update loss function (BCE + MSE combined)
+  - [x] Prepare target labels (next-day high%, low%)
+  - [ ] Retrain all models
+  - [x] Update trade.py: extract high/low from inference
+  - [x] Tick size rounding (KRX price-dependent, US $0.01)
+  - [x] DB: add predicted_high, predicted_low columns to signals table
+  - [x] Dashboard: display price targets on signals page
+- [ ] Risk management rules (stop-loss layer)
+  - [ ] Stop-loss pre-filter (price vs entry check)
+  - [ ] Hold freed cash on rule trigger (no reallocation same day)
+- [ ] Multi-portfolio support in trade.py (shared data, sequential loop)
+- [x] Dashboard: add "Transfer In" and "Adjust" transaction types (no cash impact)
 - [ ] Live testing / Paper trading
 
 ## Implementation (v1 → v2)

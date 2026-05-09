@@ -25,7 +25,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, action, currency: cashCurrency, amount: Number(price) })
   }
 
-  // EXCHANGE: sell one currency, buy another (2 transactions)
+  // EXCHANGE: withdraw source currency, deposit target currency
   if (action === "EXCHANGE") {
     const fromCur = ticker || "KRW"
     const toCur = fromCur === "USD" ? "KRW" : "USD"
@@ -34,11 +34,11 @@ export async function POST(req: Request) {
     const receivedAmount = fromCur === "KRW" ? exchangeAmount / exchangeRate : exchangeAmount * exchangeRate
 
     await supabase.from("transactions").insert({
-      portfolio_id, ticker: `CASH_${fromCur}`, action: "EXCHANGE", shares: 0,
+      portfolio_id, ticker: `CASH_${fromCur}`, action: "WITHDRAW", shares: 1,
       price: exchangeAmount, total: exchangeAmount, timestamp, user_id: user.id,
     })
     await supabase.from("transactions").insert({
-      portfolio_id, ticker: `CASH_${toCur}`, action: "EXCHANGE", shares: 0,
+      portfolio_id, ticker: `CASH_${toCur}`, action: "DEPOSIT", shares: 1,
       price: receivedAmount, total: receivedAmount, timestamp, user_id: user.id,
     })
     return NextResponse.json({ ok: true, action: "EXCHANGE", from: fromCur, to: toCur, amount: exchangeAmount, received: receivedAmount, rate: exchangeRate })

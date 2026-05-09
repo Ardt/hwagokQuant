@@ -42,9 +42,13 @@ def adjust_signals(ticker_signals: list[dict], macro: dict, portfolio_state: dic
         signal = s["signal"]
         prob = s["probability"]
 
+        # Skip macro risk adjustment for KRX tickers (VIX not applicable)
+        is_krx = ticker.isdigit()
+
         # Apply risk multiplier to buy signals
         if signal == 1:
-            prob = prob * risk_mult
+            if not is_krx:
+                prob = prob * risk_mult
             # Reduce if already concentrated in this ticker
             weight = concentration.get(ticker, 0)
             if weight > max_position_pct:
@@ -57,8 +61,8 @@ def adjust_signals(ticker_signals: list[dict], macro: dict, portfolio_state: dic
 
         # Apply risk multiplier to hold threshold for sells
         elif signal == -1:
-            # In high-risk environment, be more aggressive selling
-            prob = prob * (2 - risk_mult)  # risk_mult < 1 → sell more
+            if not is_krx:
+                prob = prob * (2 - risk_mult)
 
         # Re-evaluate signal based on adjusted probability
         if signal == 1 and prob < signal_threshold:

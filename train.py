@@ -183,13 +183,13 @@ def _update_watchlists(market: str, summary: pd.DataFrame):
     if not portfolios:
         return
 
-    # Filter portfolios by market
+    # Filter portfolios that have any ticker in this market
     market_portfolios = []
     for p in portfolios:
         s = pm.summary(p["id"])
         ptickers = [h["ticker"] for h in s.get("holdings", [])] + \
                    [w["ticker"] for w in pm.get_watchlist(p["id"])]
-        if ptickers and detect_market(ptickers[0]) == market:
+        if any(detect_market(t) == market for t in ptickers):
             market_portfolios.append(p)
     if not market_portfolios:
         return
@@ -229,8 +229,9 @@ def _get_portfolio_tickers(market: str) -> set[str]:
         s = pm.summary(p["id"])
         ptickers = [h["ticker"] for h in s.get("holdings", [])] + \
                    [w["ticker"] for w in pm.get_watchlist(p["id"])]
-        if ptickers and detect_market(ptickers[0]) == market:
-            tickers.update(ptickers)
+        for t in ptickers:
+            if detect_market(t) == market:
+                tickers.add(t)
     return tickers
 
 

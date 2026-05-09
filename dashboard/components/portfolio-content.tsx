@@ -72,7 +72,7 @@ export function PortfolioContent({ portfolios, names, rate }: {
                   for (const t of p.allTransactions) {
                     const isCash = t.ticker?.startsWith("CASH_")
                     const cur = isCash ? t.ticker.replace("CASH_", "") : (/^\d{6}$/.test(t.ticker) ? "KRW" : "USD")
-                    if (t.action === "DEPOSIT" || (t.action === "EXCHANGE" && isCash)) cash[cur] += t.total
+                    if (t.action === "DEPOSIT") cash[cur] += t.total
                     else if (t.action === "WITHDRAW") cash[cur] -= t.total
                     else if (t.action === "BUY") cash[cur] -= t.total
                     else if (t.action === "SELL") cash[cur] += t.total
@@ -138,7 +138,7 @@ export function PortfolioContent({ portfolios, names, rate }: {
               for (const t of p.allTransactions) {
                 const isCash = t.ticker?.startsWith("CASH_")
                 const cur = isCash ? t.ticker.replace("CASH_", "") : (/^\d{6}$/.test(t.ticker) ? "KRW" : "USD")
-                if (t.action === "DEPOSIT" || (t.action === "EXCHANGE" && isCash)) cashByCur[cur] = (cashByCur[cur] || 0) + t.total
+                if (t.action === "DEPOSIT") cashByCur[cur] = (cashByCur[cur] || 0) + t.total
                 else if (t.action === "WITHDRAW") cashByCur[cur] = (cashByCur[cur] || 0) - t.total
                 else if (t.action === "BUY") cashByCur[cur] = (cashByCur[cur] || 0) - t.total
                 else if (t.action === "SELL") cashByCur[cur] = (cashByCur[cur] || 0) + t.total

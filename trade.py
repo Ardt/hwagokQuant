@@ -173,46 +173,52 @@ def main():
         print("No tickers in portfolio. Add tickers first.")
         return
 
-    market = detect_market(tickers[0])
-    mcfg = get_config(market)
-    log.info(f"Trading portfolio: {portfolio['name']} (market={market})")
+    # Group tickers by market
+    tickers_by_market = {}
+    for t in tickers:
+        m = detect_market(t)
+        tickers_by_market.setdefault(m, []).append(t)
+
+    log.info(f"Trading portfolio: {portfolio['name']} (markets={list(tickers_by_market.keys())})")
 
     # Download latest models from OCI (no-op if not configured)
     storage.download_models()
 
-    # Fetch data for portfolio tickers only (holdings + watchlist)
-    fetch_all = _get_collector(market)
-    fetch_macro, _ = _get_macro(market)
-
+    # Fetch data and generate signals per market
     log.info("Fetching market data...")
-    all_data = fetch_all(tickers)
-    macro_df = fetch_macro()
-
-    # Generate signals
-    log.info("Generating signals...")
     results = []
-    for ticker in tickers:
-        if ticker not in all_data["Ticker"].values:
-            continue
-        ticker_df = all_data[all_data["Ticker"] == ticker].copy().drop(columns=["Ticker"])
-        result = predict_ticker(ticker, ticker_df, macro_df, market, strategy)
-        if result:
-            results.append(result)
+    for market, market_tickers in tickers_by_market.items():
+        fetch_all = _get_collector(market)
+        fetch_macro, _ = _get_macro(market)
+        all_data = fetch_all(market_tickers)
+        macro_df = fetch_macro()
+
+        for ticker in market_tickers:
+            if ticker not in all_data["Ticker"].values:
+                continue
+            ticker_df = all_data[all_data["Ticker"] == ticker].copy().drop(columns=["Ticker"])
+            result = predict_ticker(ticker, ticker_df, macro_df, market, strategy)
+            if result:
+                results.append(result)
 
     if not results:
         log.warning("No signals generated.")
         return
 
     # Ensemble adjustment
-    macro_latest = macro_df.iloc[-1].to_dict() if not macro_df.empty else {}
     port_summary = pm.summary(pid)
     conc = {c["ticker"]: c["weight"] for c in pm.concentration(pid)}
-    market_cash = port_summary["cash"].get(mcfg["currency"], 0)
+    total_cash = sum(port_summary["cash"].values()) if isinstance(port_summary["cash"], dict) else port_summary["cash"]
     portfolio_state = {
-        "cash_pct": market_cash / port_summary["total_value"] if port_summary["total_value"] else 1.0,
+        "cash_pct": total_cash / port_summary["total_value"] if port_summary["total_value"] else 1.0,
         "concentration": conc,
         "num_holdings": len(port_summary["holdings"]),
     }
+    # Use first market's macro for ensemble (VIX is global)
+    first_market = list(tickers_by_market.keys())[0]
+    fetch_macro_ens, _ = _get_macro(first_market)
+    macro_ens = fetch_macro_ens()
+    macro_latest = macro_ens.iloc[-1].to_dict() if not macro_ens.empty else {}
     adjusted = adjust_signals(
         [{"ticker": r["ticker"], "signal": r["latest_signal"],
           "probability": r["latest_prob"], "price": r["latest_price"]} for r in results],
@@ -223,11 +229,12 @@ def main():
         r["latest_prob"] = adj["probability"]
 
     # Show signals
-    currency = mcfg["currency"]
-    print(f"\n=== Signals ({market}, ensemble-adjusted) ===")
+    markets_str = "+".join(tickers_by_market.keys())
+    print(f"\n=== Signals ({markets_str}, ensemble-adjusted) ===")
     for r in results:
         label = {1: "BUY", 0: "HOLD", -1: "SELL"}[r["latest_signal"]]
-        print(f"  {r['ticker']}: {label} ({r['latest_prob']:.2%}, {currency} {r['latest_price']:,.0f})")
+        cur = "₩" if detect_market(r["ticker"]) == "KRX" else "$"
+        print(f"  {r['ticker']}: {label} ({r['latest_prob']:.2%}, {cur}{r['latest_price']:,.0f})")
 
     # Plan trades via allocator
     strategy_name = STRATEGY_NAME or portfolio.get("allocator_strategy") or "equal_weight"
@@ -235,12 +242,16 @@ def main():
     log.info(f"Using allocation strategy: {strategy_name}")
 
     port_summary = pm.summary(pid)
+    cash_by_cur = port_summary["cash"] if isinstance(port_summary["cash"], dict) else {"USD": port_summary["cash"]}
+    from src.portfolio.db import get_exchange_rate
     alloc_signals = [{"ticker": r["ticker"], "signal": r["latest_signal"],
                       "probability": r["latest_prob"], "price": r["latest_price"]} for r in results]
     strategy["_watchlist"] = watchlist
     strategy["_holdings"] = holdings
+    strategy["_cash_by_currency"] = cash_by_cur
+    strategy["_exchange_rate"] = get_exchange_rate()
     trades = allocator(alloc_signals, port_summary["holdings"],
-                       market_cash, port_summary["total_value"], strategy)
+                       total_cash, port_summary["total_value"], strategy)
     if not trades:
         log.info("No trades (HOLD only)")
         for r in results:
@@ -253,7 +264,8 @@ def main():
     print(f"  {'Action':<6} {'Ticker':<8} {'Shares':>8} {'Price':>12} {'Total':>14}")
     print(f"  {'-'*50}")
     for t in trades:
-        print(f"  {t['action']:<6} {t['ticker']:<8} {t['shares']:>8} {currency} {t['price']:>10,.0f} {currency} {t['total']:>12,.0f}")
+        cur = "₩" if detect_market(t["ticker"]) == "KRX" else "$"
+        print(f"  {t['action']:<6} {t['ticker']:<8} {t['shares']:>8} {cur}{t['price']:>10,.0f} {cur}{t['total']:>12,.0f}")
 
     confirm = "y" if AUTO_MODE else input("\nExecute paper trades? [Y/n]: ").strip().lower()
     if confirm not in ("", "y", "yes"):
@@ -269,19 +281,34 @@ def main():
     holdings_before = {h["ticker"]: h for h in pm.summary(pid)["holdings"]}
     trade_lines = []
     for t in trades:
+        if t["action"] == "EXCHANGE":
+            # Record exchange: source currency loses, target currency gains
+            from_cur = t["ticker"].replace("CASH_", "")
+            to_cur = "KRW" if from_cur == "USD" else "USD"
+            rate = t["shares"]
+            amount = t["price"]  # amount in source currency
+            received = t["total"]  # amount in target currency
+            from src.portfolio import db as _db
+            # Withdraw from source (total = 1 * amount)
+            _db.add_transaction(pid, f"CASH_{from_cur}", "WITHDRAW", 1, amount)
+            # Deposit to target (total = 1 * received)
+            _db.add_transaction(pid, f"CASH_{to_cur}", "DEPOSIT", 1, received)
+            trade_lines.append(f"EXCHANGE {from_cur}→{to_cur} @{rate:.0f}")
+            continue
+        cur = "₩" if detect_market(t["ticker"]) == "KRX" else "$"
         if t["action"] == "BUY":
             pm.buy(pid, t["ticker"], t["shares"], t["price"])
-            trade_lines.append(f"BUY {t['shares']} {t['ticker']} @ {currency} {t['price']:,.0f}")
+            trade_lines.append(f"BUY {t['shares']} {t['ticker']} @ {cur}{t['price']:,.0f}")
         else:
             h = holdings_before.get(t["ticker"])
             avg_cost = h["avg_cost"] if h else t["price"]
             pnl = (t["price"] - avg_cost) * t["shares"]
             pm.sell(pid, t["ticker"], t["shares"], t["price"])
-            trade_lines.append(f"SELL {t['shares']} {t['ticker']} | P&L: {currency} {pnl:+,.0f}")
+            trade_lines.append(f"SELL {t['shares']} {t['ticker']} | P&L: {cur}{pnl:+,.0f}")
 
     pm.take_snapshot(pid)
     log.info("Trade session complete")
-    notify.send(f"[{market}] Trades:\n" + "\n".join(trade_lines), "Trade Executed")
+    notify.send(f"[{markets_str}] Trades:\n" + "\n".join(trade_lines), "Trade Executed")
     pm.print_report(pid)
 
 

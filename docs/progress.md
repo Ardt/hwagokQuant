@@ -65,6 +65,10 @@ DATA FLOW — trade.py:
   - [x] rotation_metric setting (confidence, return_5d, return_20d, sharpe)
   - [x] rotation_threshold (Option B, default 10%)
   - [x] Dashboard: strategy editor with rotation options
+  - [x] Mixed-market portfolio support (KRX + US in one portfolio)
+  - [x] Per-currency cash (KRW/USD separated, no negative balance)
+  - [x] Skip VIX adjustment for KRX tickers
+  - [x] Auto-exchange (USD↔KRW when target currency insufficient)
 - [ ] 3-output LSTM model (direction + predicted high% + low%)
   - [x] Modify LSTMModel: output size 1 → 3
   - [x] Update loss function (BCE + MSE combined)

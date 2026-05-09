@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from sqlalchemy import (
     create_engine, Column, Integer, Float, Text, CheckConstraint,
-    ForeignKey, UniqueConstraint,
+    ForeignKey, UniqueConstraint, text,
 )
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 import config as cfg
@@ -135,6 +135,16 @@ def init_db():
 
 def get_session() -> Session:
     return SessionLocal()
+
+
+def get_exchange_rate(pair: str = "USD/KRW") -> float:
+    """Get latest exchange rate from DB. Falls back to 1370."""
+    with get_session() as s:
+        row = s.execute(
+            text("SELECT rate FROM exchange_rates WHERE pair = :pair ORDER BY date DESC LIMIT 1"),
+            {"pair": pair}
+        ).fetchone()
+        return float(row[0]) if row else 1370.0
 
 
 # --- Portfolios ---

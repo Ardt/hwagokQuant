@@ -17,7 +17,7 @@ Params:
 """
 
 import math
-from . import strategy
+from . import strategy, get_available_cash
 
 
 @strategy
@@ -28,6 +28,8 @@ def rotation(signals, holdings, cash, portfolio_value, params):
     holdings_map = {h["ticker"]: h for h in holdings}
     rotation_metric = params.get("rotation_metric", "confidence")
     rotation_threshold = float(params.get("rotation_threshold", 0.10))
+    cash_by_cur = params.get("_cash_by_currency", {"USD": cash})
+    exchange_rate = float(params.get("_exchange_rate", 1370))
     trades = []
 
     watchlist_set = set(watchlist)
@@ -43,6 +45,7 @@ def rotation(signals, holdings, cash, portfolio_value, params):
         if ticker not in holdings_map:
             continue
         held = holdings_map[ticker]["shares"]
+        cur = "KRW" if ticker.isdigit() else "USD"
 
         if ticker in watchlist_set:
             # In watchlist + SELL → partial sell (gradual demotion)
@@ -57,33 +60,43 @@ def rotation(signals, holdings, cash, portfolio_value, params):
                            "shares": shares, "price": s["price"],
                            "total": shares * s["price"],
                            "reason": f"{'demote' if ticker in watchlist_set else 'exit'} ({s['probability']:.0%})"})
-            cash += shares * s["price"]
+            cash_by_cur[cur] = cash_by_cur.get(cur, 0) + shares * s["price"]
 
     # --- BUY logic (promote from bench) ---
     promote_signals = [s for s in buy_signals if s["ticker"] in watchlist_set and s["ticker"] not in holdings_map]
-    if promote_signals and cash > 0:
-        cash_per = cash / len(promote_signals)
-        for s in promote_signals:
-            shares = int(cash_per // s["price"])
-            if shares > 0:
-                trades.append({"ticker": s["ticker"], "action": "BUY",
-                               "shares": shares, "price": s["price"],
-                               "total": shares * s["price"],
-                               "reason": f"promote ({s['probability']:.0%})"})
-                cash -= shares * s["price"]
+    for s in promote_signals:
+        available, ex_trades = get_available_cash(s["ticker"], cash_by_cur, exchange_rate, s["price"])
+        trades.extend(ex_trades)
+        if available <= 0:
+            continue
+        cash_per = available / len(promote_signals)
+        shares = int(cash_per // s["price"])
+        if shares > 0:
+            cur = "KRW" if s["ticker"].isdigit() else "USD"
+            total = shares * s["price"]
+            trades.append({"ticker": s["ticker"], "action": "BUY",
+                           "shares": shares, "price": s["price"],
+                           "total": total,
+                           "reason": f"promote ({s['probability']:.0%})"})
+            cash_by_cur[cur] -= total
 
     # --- BUY for existing holdings with BUY signal (add to position) ---
     add_signals = [s for s in buy_signals if s["ticker"] in holdings_map]
-    if add_signals and cash > 0:
-        cash_per = cash / len(add_signals)
-        for s in add_signals:
-            shares = int(cash_per // s["price"])
-            if shares > 0:
-                trades.append({"ticker": s["ticker"], "action": "BUY",
-                               "shares": shares, "price": s["price"],
-                               "total": shares * s["price"],
-                               "reason": f"add position ({s['probability']:.0%})"})
-                cash -= shares * s["price"]
+    for s in add_signals:
+        available, ex_trades = get_available_cash(s["ticker"], cash_by_cur, exchange_rate, s["price"])
+        trades.extend(ex_trades)
+        if available <= 0:
+            continue
+        cash_per = available / len(add_signals)
+        shares = int(cash_per // s["price"])
+        if shares > 0:
+            cur = "KRW" if s["ticker"].isdigit() else "USD"
+            total = shares * s["price"]
+            trades.append({"ticker": s["ticker"], "action": "BUY",
+                           "shares": shares, "price": s["price"],
+                           "total": total,
+                           "reason": f"add position ({s['probability']:.0%})"})
+            cash_by_cur[cur] -= total
 
     # --- ROTATION logic (all HOLD, compare bench vs playing) ---
     if not buy_signals and not sell_signals:
@@ -99,6 +112,8 @@ def rotation(signals, holdings, cash, portfolio_value, params):
 
             # Rotate only if bench exceeds playing by threshold
             if bench_score > playing_score * (1 + rotation_threshold):
+                sell_cur = "KRW" if worst_playing["ticker"].isdigit() else "USD"
+
                 # Sell worst playing (all shares)
                 held = holdings_map[worst_playing["ticker"]]["shares"]
                 sell_total = held * worst_playing["price"]
@@ -106,15 +121,19 @@ def rotation(signals, holdings, cash, portfolio_value, params):
                                "shares": held, "price": worst_playing["price"],
                                "total": sell_total,
                                "reason": f"rotate out (score {playing_score:.2f})"})
+                cash_by_cur[sell_cur] = cash_by_cur.get(sell_cur, 0) + sell_total
 
-                # Buy best bench with proceeds
-                buy_cash = sell_total
-                shares = int(buy_cash // best_bench["price"])
+                # Buy best bench with available cash in that currency
+                available, ex_trades = get_available_cash(best_bench["ticker"], cash_by_cur, exchange_rate, best_bench["price"])
+                trades.extend(ex_trades)
+                shares = int(available // best_bench["price"])
                 if shares > 0:
+                    buy_total = shares * best_bench["price"]
                     trades.append({"ticker": best_bench["ticker"], "action": "BUY",
                                    "shares": shares, "price": best_bench["price"],
-                                   "total": shares * best_bench["price"],
+                                   "total": buy_total,
                                    "reason": f"rotate in (score {bench_score:.2f})"})
+                    cash_by_cur[buy_cur] -= buy_total
 
     return trades
 

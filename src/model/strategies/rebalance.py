@@ -29,7 +29,7 @@ Params used:
 """
 
 import math
-from . import strategy
+from . import strategy, get_available_cash
 
 
 @strategy
@@ -37,6 +37,8 @@ def rebalance(signals, holdings, cash, portfolio_value, params):
     """Trim weakest HOLDs when cash is low, rebalance toward equal weight."""
     min_cash_pct = float(params.get("min_cash_pct", 0.10))
     holdings_map = {h["ticker"]: h for h in holdings}
+    cash_by_cur = params.get("_cash_by_currency", {"USD": cash})
+    exchange_rate = float(params.get("_exchange_rate", 1370))
     trades = []
 
     buy_signals = [s for s in signals if s["signal"] == 1]
@@ -50,22 +52,21 @@ def rebalance(signals, holdings, cash, portfolio_value, params):
             sell_ratio = 1 - s["probability"]
             shares = int(held * sell_ratio)
             if shares > 0:
+                cur = "KRW" if s["ticker"].isdigit() else "USD"
                 trades.append({"ticker": s["ticker"], "action": "SELL",
                                "shares": shares, "price": s["price"],
                                "total": shares * s["price"],
                                "reason": f"sell signal {sell_ratio:.0%}"})
-                cash += shares * s["price"]
+                cash_by_cur[cur] = cash_by_cur.get(cur, 0) + shares * s["price"]
 
     if not buy_signals:
         return trades
 
-    # Stage 1: trim weakest HOLDs if cash < min_cash_pct
-    cash_pct = cash / portfolio_value if portfolio_value else 1.0
+    # Stage 1: trim weakest HOLDs if total cash < min_cash_pct
+    total_cash = sum(cash_by_cur.values())
+    cash_pct = total_cash / portfolio_value if portfolio_value else 1.0
     if cash_pct < min_cash_pct and hold_signals:
-        # Weakest confidence first → trim these before stronger holds
         hold_signals_sorted = sorted(hold_signals, key=lambda s: s["probability"])
-
-        # Equal weight target across all active tickers
         num_active = len(hold_signals) + len(buy_signals)
         target_per_ticker = portfolio_value / num_active
 
@@ -80,24 +81,36 @@ def rebalance(signals, holdings, cash, portfolio_value, params):
             if excess <= 0:
                 continue
             shares_to_sell = math.ceil(excess / s["price"])
-            shares_to_sell = min(shares_to_sell, h["shares"] - 1)  # keep at least 1 share
+            shares_to_sell = min(shares_to_sell, h["shares"] - 1)
             if shares_to_sell > 0:
+                cur = "KRW" if s["ticker"].isdigit() else "USD"
                 trades.append({"ticker": s["ticker"], "action": "SELL",
                                "shares": shares_to_sell, "price": s["price"],
                                "total": shares_to_sell * s["price"],
                                "reason": f"trim for rebalance (conf {s['probability']:.1%})"})
-                cash += shares_to_sell * s["price"]
-                cash_pct = cash / portfolio_value
+                cash_by_cur[cur] = cash_by_cur.get(cur, 0) + shares_to_sell * s["price"]
+                total_cash = sum(cash_by_cur.values())
+                cash_pct = total_cash / portfolio_value
 
-    # Stage 2: allocate cash to BUY signals (equal weight)
+    # Stage 2: allocate cash to BUY signals (per currency)
     if buy_signals:
-        cash_per = cash / len(buy_signals)
+        buys_by_cur = {}
         for s in buy_signals:
-            shares = int(cash_per // s["price"])
-            if shares > 0:
-                trades.append({"ticker": s["ticker"], "action": "BUY",
-                               "shares": shares, "price": s["price"],
-                               "total": shares * s["price"],
-                               "reason": f"confidence {s['probability']:.1%}"})
+            cur = "KRW" if s["ticker"].isdigit() else "USD"
+            buys_by_cur.setdefault(cur, []).append(s)
+
+        for cur, cur_buys in buys_by_cur.items():
+            available, ex_trades = get_available_cash(cur_buys[0]["ticker"], cash_by_cur, exchange_rate, cur_buys[0]["price"])
+            trades.extend(ex_trades)
+            if available <= 0:
+                continue
+            cash_per = available / len(cur_buys)
+            for s in cur_buys:
+                shares = int(cash_per // s["price"])
+                if shares > 0:
+                    trades.append({"ticker": s["ticker"], "action": "BUY",
+                                   "shares": shares, "price": s["price"],
+                                   "total": shares * s["price"],
+                                   "reason": f"confidence {s['probability']:.1%}"})
 
     return trades

@@ -173,7 +173,7 @@ def _calc_cash(portfolio_id: int) -> float:
         ticker = t.get("ticker", "")
         is_cash = ticker.startswith("CASH_")
         cur = ticker.replace("CASH_", "") if is_cash else ("KRW" if ticker.isdigit() else "USD")
-        if t["action"] == "DEPOSIT" or (t["action"] == "EXCHANGE" and is_cash):
+        if t["action"] == "DEPOSIT":
             cash[cur] = cash.get(cur, 0) + t["total"]
         elif t["action"] == "WITHDRAW":
             cash[cur] = cash.get(cur, 0) - t["total"]
@@ -184,16 +184,31 @@ def _calc_cash(portfolio_id: int) -> float:
     return cash
 
 
+def _get_rate() -> float:
+    """Get USD/KRW exchange rate for portfolio valuation."""
+    try:
+        return db.get_exchange_rate()
+    except Exception:
+        return 1370.0
+
+
 def summary(portfolio_id: int) -> dict:
     portfolio = db.get_portfolio(portfolio_id)
     if not portfolio:
         return {}
     holdings = db.get_holdings(portfolio_id)
     cash = _calc_cash(portfolio_id)
-    total_cash = sum(cash.values())
-    market_value = sum(h["shares"] * (h["current_price"] or h["avg_cost"]) for h in holdings)
+    # Convert all values to KRW for consistent totals
+    rate = _get_rate()
+    total_cash = sum(
+        v * rate if cur == "USD" else v for cur, v in cash.items()
+    )
+    market_value = sum(
+        h["shares"] * (h["current_price"] or h["avg_cost"]) * (rate if not h["ticker"].isdigit() else 1)
+        for h in holdings
+    )
     total_value = total_cash + market_value
-    total_return = (total_value - portfolio["initial_capital"]) / portfolio["initial_capital"]
+    total_return = (total_value - portfolio["initial_capital"]) / portfolio["initial_capital"] if portfolio["initial_capital"] else 0
     return {"portfolio": portfolio, "holdings": holdings, "cash": cash,
             "market_value": market_value, "total_value": total_value, "total_return": total_return}
 
@@ -202,7 +217,8 @@ def take_snapshot(portfolio_id: int):
     """Save current portfolio state for equity curve tracking."""
     s = summary(portfolio_id)
     if s:
-        db.add_snapshot(portfolio_id, s["total_value"], s["cash"], s["market_value"])
+        cash = sum(s["cash"].values()) if isinstance(s["cash"], dict) else s["cash"]
+        db.add_snapshot(portfolio_id, s["total_value"], cash, s["market_value"])
 
 
 def equity_curve(portfolio_id: int) -> pd.DataFrame:
@@ -264,9 +280,10 @@ def concentration(portfolio_id: int) -> list[dict]:
     s = summary(portfolio_id)
     if not s or s["total_value"] == 0:
         return []
+    rate = _get_rate()
     return [{"ticker": h["ticker"],
-             "value": h["shares"] * (h["current_price"] or h["avg_cost"]),
-             "weight": h["shares"] * (h["current_price"] or h["avg_cost"]) / s["total_value"]}
+             "value": h["shares"] * (h["current_price"] or h["avg_cost"]) * (rate if not h["ticker"].isdigit() else 1),
+             "weight": h["shares"] * (h["current_price"] or h["avg_cost"]) * (rate if not h["ticker"].isdigit() else 1) / s["total_value"]}
             for h in s["holdings"]]
 
 
@@ -372,10 +389,13 @@ def print_report(portfolio_id: int):
     print(f"  Portfolio: {p['name']}")
     print(f"  {p['description']}")
     print(f"{'='*60}")
-    print(f"  Initial Capital:  ${p['initial_capital']:>14,.2f}")
-    print(f"  Cash:             ${s['cash']:>14,.2f}")
-    print(f"  Market Value:     ${s['market_value']:>14,.2f}")
-    print(f"  Total Value:      ${s['total_value']:>14,.2f}")
+    print(f"  Initial Capital:  ₩{p['initial_capital']:>14,.0f}")
+    cash_total = sum(
+        v * _get_rate() if cur == "USD" else v for cur, v in s['cash'].items()
+    ) if isinstance(s['cash'], dict) else s['cash']
+    print(f"  Cash:             ₩{cash_total:>14,.0f}")
+    print(f"  Market Value:     ₩{s['market_value']:>14,.0f}")
+    print(f"  Total Value:      ₩{s['total_value']:>14,.0f}")
     print(f"  Total Return:     {s['total_return']:>14.2%}")
 
     pnl = gross_pnl(portfolio_id)

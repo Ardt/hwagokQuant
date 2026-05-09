@@ -20,6 +20,8 @@ interface PortfolioData {
   max_position_pct: number | null
   min_cash_pct: number | null
   allocator_strategy: string | null
+  rotation_metric: string | null
+  rotation_threshold: number | null
   holdings: any[]
   snapshots: any[]
   transactions: any[]
@@ -84,6 +86,8 @@ export function PortfolioContent({ portfolios, names, rate }: {
                 max_position_pct: p.max_position_pct ?? 0.25,
                 min_cash_pct: p.min_cash_pct ?? 0.10,
                 allocator_strategy: p.allocator_strategy ?? "equal_weight",
+                rotation_metric: p.rotation_metric ?? "confidence",
+                rotation_threshold: p.rotation_threshold ?? 0.10,
               }} />
             </div>
             <CurrencyToggle defaultCurrency={baseCurrency} onChange={setBaseCurrency} />

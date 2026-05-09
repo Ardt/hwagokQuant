@@ -57,6 +57,14 @@ DATA FLOW — trade.py:
 - [x] Secrets management (dotenv)
 - [x] Dashboard (Next.js / Vercel)
 - [ ] Optimization and tuning
+- [x] Redesign trade.py: portfolio-only tickers
+  - [x] Remove model discovery (only use holdings + watchlist)
+  - [x] Add --portfolio=<id> flag for auto mode
+- [x] Rotation strategy (bench/playing)
+  - [x] Implement rotation logic (promote, demote, rotate)
+  - [x] rotation_metric setting (confidence, return_5d, return_20d, sharpe)
+  - [x] rotation_threshold (Option B, default 10%)
+  - [x] Dashboard: strategy editor with rotation options
 - [ ] 3-output LSTM model (direction + predicted high% + low%)
   - [x] Modify LSTMModel: output size 1 → 3
   - [x] Update loss function (BCE + MSE combined)

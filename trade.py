@@ -2,7 +2,6 @@
 
 import os
 import sys
-import glob
 import config as cfg
 from src import logger
 from src.market import detect_market, detect_portfolio_market, get_config
@@ -24,6 +23,7 @@ log = logger.get("trade")
 
 AUTO_MODE = "--auto" in sys.argv
 STRATEGY_NAME = next((a.split("=")[1] for a in sys.argv if a.startswith("--strategy=")), None)
+PORTFOLIO_ID = next((int(a.split("=")[1]) for a in sys.argv if a.startswith("--portfolio=")), None)
 
 
 def _get_collector(market: str):
@@ -51,7 +51,7 @@ def _get_sentiment(market: str):
 
 
 def select_portfolio() -> dict | None:
-    """Select portfolio. In auto mode, returns all portfolios with tickers."""
+    """Select portfolio. In auto mode, selects by ID or first with tickers."""
     pm.init()
     portfolios = pm.list_all()
     if not portfolios:
@@ -59,7 +59,13 @@ def select_portfolio() -> dict | None:
         return None
 
     if AUTO_MODE:
-        # Auto: return first portfolio that has tickers
+        if PORTFOLIO_ID:
+            s = pm.summary(PORTFOLIO_ID)
+            if not s:
+                log.warning(f"Portfolio ID {PORTFOLIO_ID} not found.")
+                return None
+            return s["portfolio"]
+        # Fallback: first portfolio with tickers
         for p in portfolios:
             s = pm.summary(p["id"])
             tickers = [h["ticker"] for h in s.get("holdings", [])] + \
@@ -155,6 +161,8 @@ def main():
         "vix_threshold": str(portfolio.get("vix_threshold") or 30),
         "max_position_pct": str(portfolio.get("max_position_pct") or 0.25),
         "min_cash_pct": str(portfolio.get("min_cash_pct") or 0.10),
+        "rotation_metric": portfolio.get("rotation_metric") or "confidence",
+        "rotation_threshold": str(portfolio.get("rotation_threshold") or 0.10),
     }
 
     # Detect market from portfolio tickers
@@ -172,18 +180,12 @@ def main():
     # Download latest models from OCI (no-op if not configured)
     storage.download_models()
 
-    # Discover new tickers from trained models (same market only)
-    all_models = [os.path.basename(f).replace("_lstm.pt", "")
-                  for f in glob.glob(os.path.join(MODELS_DIR, "*_lstm.pt"))]
-    new_tickers = [t for t in all_models if t not in tickers and detect_market(t) == market]
-
-    # Fetch data
-    all_tickers = tickers + new_tickers
+    # Fetch data for portfolio tickers only (holdings + watchlist)
     fetch_all = _get_collector(market)
     fetch_macro, _ = _get_macro(market)
 
     log.info("Fetching market data...")
-    all_data = fetch_all(all_tickers)
+    all_data = fetch_all(tickers)
     macro_df = fetch_macro()
 
     # Generate signals
@@ -195,15 +197,6 @@ def main():
         ticker_df = all_data[all_data["Ticker"] == ticker].copy().drop(columns=["Ticker"])
         result = predict_ticker(ticker, ticker_df, macro_df, market, strategy)
         if result:
-            results.append(result)
-
-    # Scan new tickers for buy signals
-    for ticker in new_tickers:
-        if ticker not in all_data["Ticker"].values:
-            continue
-        ticker_df = all_data[all_data["Ticker"] == ticker].copy().drop(columns=["Ticker"])
-        result = predict_ticker(ticker, ticker_df, macro_df, market, strategy)
-        if result and result["latest_signal"] == 1:
             results.append(result)
 
     if not results:
@@ -244,6 +237,8 @@ def main():
     port_summary = pm.summary(pid)
     alloc_signals = [{"ticker": r["ticker"], "signal": r["latest_signal"],
                       "probability": r["latest_prob"], "price": r["latest_price"]} for r in results]
+    strategy["_watchlist"] = watchlist
+    strategy["_holdings"] = holdings
     trades = allocator(alloc_signals, port_summary["holdings"],
                        market_cash, port_summary["total_value"], strategy)
     if not trades:

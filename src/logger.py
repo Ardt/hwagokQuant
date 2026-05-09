@@ -11,7 +11,7 @@ def setup(level=logging.INFO):
     """Configure root logger with console + file handlers."""
     os.makedirs(cfg.DATA_DIR, exist_ok=True)
 
-    root = logging.getLogger("q")
+    root = logging.getLogger("HwagokQuant")
     root.setLevel(logging.DEBUG)
 
     if root.handlers:
@@ -32,11 +32,11 @@ def setup(level=logging.INFO):
 
     # Suppress noisy third-party loggers
     for name in ("urllib3", "yfinance", "transformers", "httpx"):
-        logging.getLogger(name).setLevel(logging.WARNING)
+        logging.getLogger(name).setLevel(logging.INFO)
 
     return root
 
 
 def get(name: str) -> logging.Logger:
     """Get a child logger. Call setup() first."""
-    return logging.getLogger(f"q.{name}")
+    return logging.getLogger(f"HwagokQuant.{name}")

@@ -9,6 +9,8 @@ interface StrategyParams {
   max_position_pct: number
   min_cash_pct: number
   allocator_strategy: string
+  rotation_metric: string
+  rotation_threshold: number
 }
 
 export function StrategyEditor({ portfolioId, params }: { portfolioId: number; params: StrategyParams }) {
@@ -52,8 +54,28 @@ export function StrategyEditor({ portfolioId, params }: { portfolioId: number; p
           >
             <option value="equal_weight">Equal Weight — split cash equally among BUYs</option>
             <option value="rebalance">Rebalance — trim weak HOLDs + equal weight</option>
+            <option value="rotation">Rotation — bench/playing with auto-swap</option>
           </select>
         </div>
+        {form.allocator_strategy === "rotation" && (
+          <>
+            <div>
+              <label className="text-xs font-medium text-gray-900 dark:text-white">Rotation Metric</label>
+              <p className="text-[10px] text-gray-400 mb-1">How to compare bench vs playing</p>
+              <select
+                value={form.rotation_metric || "confidence"}
+                onChange={(e) => setForm({ ...form, rotation_metric: e.target.value })}
+                className="w-full px-2 py-1.5 text-xs rounded-md border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white"
+              >
+                <option value="confidence">Confidence — model probability</option>
+                <option value="return_5d">Return 5D — 5-day price return</option>
+                <option value="return_20d">Return 20D — 20-day price return</option>
+                <option value="sharpe">Sharpe — risk-adjusted return</option>
+              </select>
+            </div>
+            <Field label="Rotation Threshold" desc="Min gap to trigger swap (0.05–0.5)" value={form.rotation_threshold} min={0.05} max={0.5} step={0.05} onChange={(v) => setForm({ ...form, rotation_threshold: v })} />
+          </>
+        )}
         <Field label="Signal Threshold" desc="Buy above this confidence (0.1–0.9)" value={form.signal_threshold} min={0.1} max={0.9} step={0.05} onChange={(v) => setForm({ ...form, signal_threshold: v })} />
         <Field label="VIX Threshold" desc="Reduce buys above this VIX (15–50)" value={form.vix_threshold} min={15} max={50} step={1} onChange={(v) => setForm({ ...form, vix_threshold: v })} />
         <Field label="Max Position %" desc="Max weight per ticker (0.05–1.0)" value={form.max_position_pct} min={0.05} max={1.0} step={0.05} onChange={(v) => setForm({ ...form, max_position_pct: v })} />

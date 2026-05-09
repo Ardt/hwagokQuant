@@ -26,6 +26,12 @@ class Portfolio(Base):
     description = Column(Text, default="")
     initial_capital = Column(Float, nullable=False, default=100_000)
     allocator_strategy = Column(Text, default="equal_weight")
+    signal_threshold = Column(Float)
+    vix_threshold = Column(Float)
+    max_position_pct = Column(Float)
+    min_cash_pct = Column(Float)
+    rotation_metric = Column(Text, default="confidence")
+    rotation_threshold = Column(Float, default=0.10)
     created_at = Column(Text, nullable=False)
     updated_at = Column(Text, nullable=False)
 

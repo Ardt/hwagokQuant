@@ -103,7 +103,7 @@ def fetch_all(tickers: list[str] | None = None) -> pd.DataFrame:
 
     os.makedirs(cfg.DATA_DIR, exist_ok=True)
     ohlcv_path = os.path.join(cfg.DATA_DIR, "ohlcv.csv")
-    today = date.today().strftime("%Y-%m-%d")
+    today = cfg.END_DATE or date.today().strftime("%Y-%m-%d")
 
     existing = None
     if os.path.exists(ohlcv_path):

@@ -32,7 +32,6 @@ export default async function ComparePage() {
       return {
         id: p.id,
         name: p.name,
-        initial_capital: p.initial_capital,
         total_value: totalValue,
         total_return: totalReturn,
         sharpe,

@@ -5,8 +5,13 @@ import config as cfg
 
 
 def detect_market(ticker: str) -> str:
-    """KRX tickers are 6-digit numeric, US tickers are alphabetic."""
-    return "KRX" if ticker.isdigit() else "US"
+    """KRX tickers are 6-digit numeric or 5-digit + letter suffix (preferred). US tickers are alphabetic."""
+    if ticker.isdigit():
+        return "KRX"
+    # KRX preferred: 5 digits + letter suffix (e.g., 37550K, 005935)
+    if len(ticker) == 6 and ticker[:5].isdigit() and ticker[5].isalpha():
+        return "KRX"
+    return "US"
 
 
 def detect_portfolio_market(tickers: list[str]) -> str | None:

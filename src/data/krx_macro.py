@@ -23,7 +23,7 @@ def _get_fred() -> Fred:
 def fetch_macro() -> pd.DataFrame:
     """Fetch Korean macro data from FRED. Incremental."""
     cache_path = os.path.join(cfg.DATA_DIR, _mcfg["data_files"]["macro"])
-    today = date.today().strftime("%Y-%m-%d")
+    today = cfg.END_DATE or date.today().strftime("%Y-%m-%d")
     series_map = _mcfg["macro_series"]
 
     if os.path.exists(cache_path):

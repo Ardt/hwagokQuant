@@ -23,7 +23,7 @@ def fetch_fred_data() -> pd.DataFrame:
     from datetime import date
 
     cache_path = os.path.join(cfg.DATA_DIR, "fred.csv")
-    today = date.today().strftime("%Y-%m-%d")
+    today = cfg.END_DATE or date.today().strftime("%Y-%m-%d")
 
     if os.path.exists(cache_path):
         df = pd.read_csv(cache_path, index_col=0, parse_dates=True)

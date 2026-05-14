@@ -197,10 +197,16 @@ def _update_watchlists(market: str, summary: pd.DataFrame):
     strong = summary[(summary["sharpe_ratio"] > 1.0) & (summary["total_return"] > 0)]
     if not strong.empty:
         added = []
+        full = False
         for _, row in strong.iterrows():
+            if full:
+                break
             for p in market_portfolios:
-                pm.add_to_watchlist(p["id"], row["ticker"])
-            added.append(f"{row['ticker']} (sharpe={row['sharpe_ratio']:.2f})")
+                if not pm.add_to_watchlist(p["id"], row["ticker"]):
+                    full = True
+                    break
+            if not full:
+                added.append(f"{row['ticker']} (sharpe={row['sharpe_ratio']:.2f})")
         if added:
             notify.send(f"[{market}] Strong performers:\n" + "\n".join(added), "Training Alert")
 

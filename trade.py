@@ -174,10 +174,12 @@ def main():
         log.info("No tickers in portfolio. Auto-populating watchlist from universe...")
         from src.data.collector import get_universe as get_us_universe
         from src.data.krx_collector import get_universe as get_krx_universe
-        for t in get_us_universe()[:cfg.WATCHLIST_MAX_PER_MARKET]:
-            pm.add_to_watchlist(pid, t)
-        for t in get_krx_universe()[:cfg.WATCHLIST_MAX_PER_MARKET]:
-            pm.add_to_watchlist(pid, t)
+        for t in get_us_universe():
+            if not pm.add_to_watchlist(pid, t):
+                break
+        for t in get_krx_universe():
+            if not pm.add_to_watchlist(pid, t):
+                break
         watchlist = [w["ticker"] for w in pm.get_watchlist(pid)]
         tickers = list(set(watchlist))
 

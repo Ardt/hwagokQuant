@@ -70,15 +70,15 @@ def record_backtest(portfolio_id: int, ticker: str, metrics: dict):
 # Position Management
 # ============================================================
 
-def add_to_watchlist(portfolio_id: int, ticker: str):
+def add_to_watchlist(portfolio_id: int, ticker: str) -> bool:
     from src.market import detect_market
     market = detect_market(ticker)
     current = db.get_watchlist(portfolio_id)
     same_market = [w for w in current if detect_market(w["ticker"]) == market]
     if len(same_market) >= cfg.WATCHLIST_MAX_PER_MARKET:
-        log.warning(f"Watchlist limit ({cfg.WATCHLIST_MAX_PER_MARKET}) reached for {market}")
-        return
+        return False
     db.add_to_watchlist(portfolio_id, ticker)
+    return True
 
 
 def remove_from_watchlist(portfolio_id: int, ticker: str):
@@ -166,22 +166,25 @@ def realized_pnl(portfolio_id: int) -> list[dict]:
     return realized
 
 
-def _calc_cash(portfolio_id: int) -> float:
-    p = db.get_portfolio(portfolio_id)
+def _calc_cash_and_invested(portfolio_id: int, rate: float) -> tuple[dict, float]:
+    """Calculate cash per currency and total invested (KRW) in one pass."""
     cash = {"USD": 0.0, "KRW": 0.0}
+    invested = 0.0
     for t in db.get_transactions(portfolio_id):
         ticker = t.get("ticker", "")
         is_cash = ticker.startswith("CASH_")
         cur = ticker.replace("CASH_", "") if is_cash else ("KRW" if ticker.isdigit() else "USD")
         if t["action"] == "DEPOSIT":
             cash[cur] = cash.get(cur, 0) + t["total"]
+            invested += t["total"] * (rate if cur == "USD" else 1)
         elif t["action"] == "WITHDRAW":
             cash[cur] = cash.get(cur, 0) - t["total"]
+            invested -= t["total"] * (rate if cur == "USD" else 1)
         elif t["action"] == "SELL":
             cash[cur] = cash.get(cur, 0) + t["total"]
         elif t["action"] == "BUY":
             cash[cur] = cash.get(cur, 0) - t["total"]
-    return cash
+    return cash, invested
 
 
 def _get_rate() -> float:
@@ -192,29 +195,13 @@ def _get_rate() -> float:
         return 1370.0
 
 
-def _calc_invested(portfolio_id: int) -> float:
-    """Total invested = sum of deposits - withdrawals (converted to KRW)."""
-    rate = _get_rate()
-    invested = 0.0
-    for t in db.get_transactions(portfolio_id):
-        ticker = t.get("ticker", "")
-        if t["action"] == "DEPOSIT":
-            cur = ticker.replace("CASH_", "") if ticker.startswith("CASH_") else "KRW"
-            invested += t["total"] * (rate if cur == "USD" else 1)
-        elif t["action"] == "WITHDRAW":
-            cur = ticker.replace("CASH_", "") if ticker.startswith("CASH_") else "KRW"
-            invested -= t["total"] * (rate if cur == "USD" else 1)
-    return invested
-
-
 def summary(portfolio_id: int) -> dict:
     portfolio = db.get_portfolio(portfolio_id)
     if not portfolio:
         return {}
     holdings = db.get_holdings(portfolio_id)
-    cash = _calc_cash(portfolio_id)
-    # Convert all values to KRW for consistent totals
     rate = _get_rate()
+    cash, invested = _calc_cash_and_invested(portfolio_id, rate)
     total_cash = sum(
         v * rate if cur == "USD" else v for cur, v in cash.items()
     )
@@ -223,7 +210,6 @@ def summary(portfolio_id: int) -> dict:
         for h in holdings
     )
     total_value = total_cash + market_value
-    invested = _calc_invested(portfolio_id)
     total_return = (total_value - invested) / invested if invested else 0
     return {"portfolio": portfolio, "holdings": holdings, "cash": cash,
             "market_value": market_value, "total_value": total_value, "total_return": total_return}

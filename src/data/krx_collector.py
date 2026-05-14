@@ -65,7 +65,7 @@ def fetch_ohlcv(ticker: str, start: str = None) -> pd.DataFrame | None:
     try:
         s = start or cfg.START_DATE
         from_date = s.replace("-", "")
-        to_date = date.today().strftime("%Y%m%d")
+        to_date = (cfg.END_DATE or date.today().isoformat()).replace("-", "")
 
         df = stock.get_market_ohlcv_by_date(from_date, to_date, ticker)
         time.sleep(1)
@@ -91,7 +91,7 @@ def fetch_all(tickers: list[str] | None = None) -> pd.DataFrame:
 
     os.makedirs(cfg.DATA_DIR, exist_ok=True)
     ohlcv_path = os.path.join(cfg.DATA_DIR, _mcfg["data_files"]["ohlcv"])
-    today = date.today().strftime("%Y-%m-%d")
+    today = cfg.END_DATE or date.today().strftime("%Y-%m-%d")
 
     existing = None
     if os.path.exists(ohlcv_path):

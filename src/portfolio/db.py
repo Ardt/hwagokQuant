@@ -24,7 +24,6 @@ class Portfolio(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(Text, unique=True, nullable=False)
     description = Column(Text, default="")
-    initial_capital = Column(Float, nullable=False, default=100_000)
     allocator_strategy = Column(Text, default="equal_weight")
     signal_threshold = Column(Float)
     vix_threshold = Column(Float)
@@ -149,11 +148,10 @@ def get_exchange_rate(pair: str = "USD/KRW") -> float:
 
 # --- Portfolios ---
 
-def create_portfolio(name: str, description: str = "", initial_capital: float = None) -> int:
-    capital = initial_capital or cfg.INITIAL_CAPITAL
+def create_portfolio(name: str, description: str = "") -> int:
     now = _now()
     with get_session() as s:
-        p = Portfolio(name=name, description=description, initial_capital=capital, created_at=now, updated_at=now)
+        p = Portfolio(name=name, description=description, created_at=now, updated_at=now)
         s.add(p)
         s.commit()
         return p.id
@@ -331,7 +329,7 @@ def clone_portfolio(portfolio_id: int, new_name: str) -> int:
     src = get_portfolio(portfolio_id)
     if not src:
         raise ValueError(f"Portfolio {portfolio_id} not found")
-    new_id = create_portfolio(new_name, src["description"], src["initial_capital"])
+    new_id = create_portfolio(new_name, src["description"])
     with get_session() as s:
         for h in s.query(Holding).filter_by(portfolio_id=portfolio_id).all():
             s.add(Holding(portfolio_id=new_id, ticker=h.ticker, shares=h.shares,
@@ -384,3 +382,17 @@ def get_all_settings() -> dict:
     with get_session() as s:
         rows = {r.key: r.value for r in s.query(Setting).all()}
     return {**DEFAULTS, **rows}
+
+
+def sync_ticker_names(names: dict):
+    """Upsert ticker names to DB. names = {"005930": "삼성전자", "AAPL": "Apple Inc."}"""
+    with get_session() as s:
+        for ticker, name in names.items():
+            existing = s.execute(
+                text("SELECT 1 FROM ticker_names WHERE ticker = :t"), {"t": ticker}
+            ).fetchone()
+            if existing:
+                s.execute(text("UPDATE ticker_names SET name = :n WHERE ticker = :t"), {"t": ticker, "n": name})
+            else:
+                s.execute(text("INSERT INTO ticker_names (ticker, name) VALUES (:t, :n)"), {"t": ticker, "n": name})
+        s.commit()

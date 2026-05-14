@@ -26,14 +26,12 @@ export async function POST(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { name, initial_capital, base_currency } = await req.json()
+  const { name } = await req.json()
   if (!name) return NextResponse.json({ error: "name required" }, { status: 400 })
 
   const now = new Date().toISOString()
   const { data, error } = await supabase.from("portfolios").insert({
     name,
-    initial_capital: initial_capital || 100000,
-    base_currency: base_currency || "USD",
     user_id: user.id,
     created_at: now,
     updated_at: now,

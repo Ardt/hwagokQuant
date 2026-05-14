@@ -53,18 +53,21 @@ def get_universe() -> list[str]:
     # Sort by market cap (descending)
     log.info(f"Sorting {len(tickers)} tickers by market cap...")
     cap_map = {}
+    name_map = {}
     for t in tickers:
         try:
             info = yf.Ticker(t).info
             cap_map[t] = info.get("marketCap", 0) or 0
+            name_map[t] = info.get("shortName", t)
         except Exception:
             cap_map[t] = 0
+            name_map[t] = t
         time.sleep(0.3)
     tickers.sort(key=lambda t: cap_map[t], reverse=True)
     tickers = tickers[: cfg.MAX_TICKERS] if cfg.MAX_TICKERS else tickers
 
     os.makedirs(cfg.DATA_DIR, exist_ok=True)
-    df = pd.DataFrame({"Ticker": tickers, "MarketCap": [cap_map[t] for t in tickers]})
+    df = pd.DataFrame({"Ticker": tickers, "Name": [name_map[t] for t in tickers], "MarketCap": [cap_map[t] for t in tickers]})
     df.to_csv(cache_path, index=False)
     log.info(f"Cached {len(tickers)} tickers to {cache_path}")
     return tickers

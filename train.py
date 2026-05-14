@@ -235,6 +235,28 @@ def _get_portfolio_tickers(market: str) -> set[str]:
     return tickers
 
 
+def _sync_ticker_names():
+    """Sync ticker names from cached CSVs to DB."""
+    from src.portfolio.db import sync_ticker_names
+    names = {}
+    # KRX names
+    krx_path = os.path.join(cfg.DATA_DIR, "krx_tickers.csv")
+    if os.path.exists(krx_path):
+        df = pd.read_csv(krx_path)
+        for _, row in df.iterrows():
+            names[str(row["Ticker"])] = row["Name"]
+    # US names
+    us_path = os.path.join(cfg.DATA_DIR, "tickers.csv")
+    if os.path.exists(us_path):
+        df = pd.read_csv(us_path)
+        if "Name" in df.columns:
+            for _, row in df.iterrows():
+                names[row["Ticker"]] = row["Name"]
+    if names:
+        sync_ticker_names(names)
+        log.info(f"Synced {len(names)} ticker names to DB")
+
+
 def main():
     """Train models for each market: universe (top N by market cap) + portfolio extras."""
     full = "--full" in sys.argv
@@ -253,6 +275,16 @@ def main():
 
         # 3. Train
         train_market(market, tickers, full=full)
+
+    # Sync ticker names to DB
+    _sync_ticker_names()
+
+    # Update exchange rate
+    try:
+        from fetch_exchange_rate import fetch_and_store
+        fetch_and_store()
+    except Exception as e:
+        log.warning(f"Exchange rate update failed: {e}")
 
     # Upload to OCI Object Storage (no-op if not configured)
     storage.upload_models()

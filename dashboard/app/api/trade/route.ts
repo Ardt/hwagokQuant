@@ -8,7 +8,7 @@ export async function POST(req: Request) {
 
   const { portfolio_id, ticker, action, shares, price } = await req.json()
 
-  if (!["BUY", "SELL", "DEPOSIT", "WITHDRAW", "EXCHANGE", "TRANSFER_IN", "TRANSFER_OUT", "ADJUST"].includes(action)) {
+  if (!["BUY", "SELL", "DEPOSIT", "WITHDRAW", "TRANSFER_IN", "TRANSFER_OUT", "ADJUST"].includes(action)) {
     return NextResponse.json({ error: "Invalid action" }, { status: 400 })
   }
 
@@ -56,39 +56,34 @@ export async function POST(req: Request) {
     portfolio_id, ticker, action, shares, price, total, timestamp, user_id: user.id,
   })
 
-  // TRANSFER_IN / ADJUST: add holdings without affecting cash
+  // TRANSFER_IN / ADJUST: modify holdings without affecting cash
   if (action === "TRANSFER_IN" || action === "ADJUST") {
     const { data: existing } = await supabase
       .from("holdings").select("*").eq("portfolio_id", portfolio_id).eq("ticker", ticker).single()
-    if (action === "ADJUST" && !existing) {
-      return NextResponse.json({ error: "No holding to adjust" }, { status: 400 })
-    }
-    if (existing) {
-      const newShares = existing.shares + shares
-      const avgCost = (existing.shares * existing.avg_cost + shares * price) / newShares
-      await supabase.from("holdings")
-        .update({ shares: newShares, avg_cost: avgCost, current_price: price, updated_at: timestamp })
-        .eq("id", existing.id)
-    } else {
-      await supabase.from("holdings").insert({
-        portfolio_id, ticker, shares, avg_cost: price, current_price: price, currency, updated_at: timestamp, user_id: user.id,
-      })
-    }
-    return NextResponse.json({ ok: true, action, ticker, shares, price, total })
-  }
-
-  // TRANSFER_OUT: remove holdings without affecting cash
-  if (action === "TRANSFER_OUT") {
-    const { data: existing } = await supabase
-      .from("holdings").select("*").eq("portfolio_id", portfolio_id).eq("ticker", ticker).single()
-    if (!existing) return NextResponse.json({ error: "No holding to transfer out" }, { status: 400 })
-    const remaining = existing.shares - shares
-    if (remaining <= 0) {
-      await supabase.from("holdings").delete().eq("id", existing.id)
-    } else {
-      await supabase.from("holdings")
-        .update({ shares: remaining, current_price: price, updated_at: timestamp })
-        .eq("id", existing.id)
+    if (shares > 0) {
+      // Add shares
+      if (existing) {
+        const newShares = existing.shares + shares
+        const avgCost = (existing.shares * existing.avg_cost + shares * price) / newShares
+        await supabase.from("holdings")
+          .update({ shares: newShares, avg_cost: avgCost, current_price: price, updated_at: timestamp })
+          .eq("id", existing.id)
+      } else {
+        await supabase.from("holdings").insert({
+          portfolio_id, ticker, shares, avg_cost: price, current_price: price, currency, updated_at: timestamp, user_id: user.id,
+        })
+      }
+    } else if (shares < 0) {
+      // Remove shares
+      if (!existing) return NextResponse.json({ error: "No holding to adjust" }, { status: 400 })
+      const remaining = existing.shares + shares  // shares is negative
+      if (remaining <= 0) {
+        await supabase.from("holdings").delete().eq("id", existing.id)
+      } else {
+        await supabase.from("holdings")
+          .update({ shares: remaining, current_price: price, updated_at: timestamp })
+          .eq("id", existing.id)
+      }
     }
     return NextResponse.json({ ok: true, action, ticker, shares, price, total })
   }

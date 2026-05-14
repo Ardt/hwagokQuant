@@ -13,8 +13,7 @@ import { HoldingsTable } from "./holdings-table"
 interface PortfolioData {
   id: number
   name: string
-  initial_capital: number
-  base_currency: string
+  description: string | null
   signal_threshold: number | null
   vix_threshold: number | null
   max_position_pct: number | null
@@ -66,6 +65,7 @@ export function PortfolioContent({ portfolios, names, rate }: {
                 <Briefcase className="w-4 h-4" /> {p.name}
                 <DeletePortfolio id={p.id} name={p.name} />
               </button>
+              <EditableDescription portfolioId={p.id} initial={p.description || ""} />
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Holdings: {formatCurrency(totalValue(p.holdings), baseCurrency)} | {(() => {
                   const cash: Record<string, number> = { USD: 0, KRW: 0 }
@@ -209,5 +209,38 @@ export function PortfolioContent({ portfolios, names, rate }: {
         </div>
       ))}
     </>
+  )
+}
+
+function EditableDescription({ portfolioId, initial }: { portfolioId: number; initial: string }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(initial)
+  const [saving, setSaving] = useState(false)
+
+  async function save() {
+    setSaving(true)
+    await fetch("/api/portfolio/strategy", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ portfolio_id: portfolioId, description: value }),
+    })
+    setSaving(false)
+    setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <button onClick={() => setEditing(true)} className="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+        {value || "Add description..."}
+      </button>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-2 mt-1">
+      <input value={value} onChange={(e) => setValue(e.target.value)} placeholder="Description" className="px-2 py-1 text-xs rounded border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white w-48" />
+      <button onClick={save} disabled={saving} className="px-2 py-1 text-xs rounded bg-blue-600 text-white disabled:opacity-50">{saving ? "..." : "Save"}</button>
+      <button onClick={() => { setEditing(false); setValue(initial) }} className="px-2 py-1 text-xs text-gray-400">Cancel</button>
+    </div>
   )
 }

@@ -5,7 +5,7 @@ import { Plus, Trash2 } from "lucide-react"
 
 export function CreatePortfolio() {
   const [open, setOpen] = useState(false)
-  const [form, setForm] = useState({ name: "", initial_capital: "100000", base_currency: "USD" })
+  const [form, setForm] = useState({ name: "" })
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -14,7 +14,7 @@ export function CreatePortfolio() {
     await fetch("/api/portfolio", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: form.name, initial_capital: Number(form.initial_capital), base_currency: form.base_currency }),
+      body: JSON.stringify({ name: form.name }),
     })
     setSubmitting(false)
     setOpen(false)
@@ -32,11 +32,6 @@ export function CreatePortfolio() {
   return (
     <form onSubmit={handleSubmit} className="flex items-center gap-2">
       <input placeholder="Name" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white w-24" />
-      <input placeholder="Capital" type="number" value={form.initial_capital} onChange={(e) => setForm({ ...form, initial_capital: e.target.value })} className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white w-24" />
-      <select value={form.base_currency} onChange={(e) => setForm({ ...form, base_currency: e.target.value })} className="px-2 py-1.5 text-xs rounded-lg border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white">
-        <option value="USD">USD</option>
-        <option value="KRW">KRW</option>
-      </select>
       <button type="submit" disabled={submitting} className="px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">Create</button>
       <button type="button" onClick={() => setOpen(false)} className="px-2 py-1.5 text-xs text-gray-400 hover:text-gray-600">Cancel</button>
     </form>

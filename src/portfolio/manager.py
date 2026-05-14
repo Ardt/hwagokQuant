@@ -192,6 +192,21 @@ def _get_rate() -> float:
         return 1370.0
 
 
+def _calc_invested(portfolio_id: int) -> float:
+    """Total invested = sum of deposits - withdrawals (converted to KRW)."""
+    rate = _get_rate()
+    invested = 0.0
+    for t in db.get_transactions(portfolio_id):
+        ticker = t.get("ticker", "")
+        if t["action"] == "DEPOSIT":
+            cur = ticker.replace("CASH_", "") if ticker.startswith("CASH_") else "KRW"
+            invested += t["total"] * (rate if cur == "USD" else 1)
+        elif t["action"] == "WITHDRAW":
+            cur = ticker.replace("CASH_", "") if ticker.startswith("CASH_") else "KRW"
+            invested -= t["total"] * (rate if cur == "USD" else 1)
+    return invested
+
+
 def summary(portfolio_id: int) -> dict:
     portfolio = db.get_portfolio(portfolio_id)
     if not portfolio:
@@ -208,7 +223,8 @@ def summary(portfolio_id: int) -> dict:
         for h in holdings
     )
     total_value = total_cash + market_value
-    total_return = (total_value - portfolio["initial_capital"]) / portfolio["initial_capital"] if portfolio["initial_capital"] else 0
+    invested = _calc_invested(portfolio_id)
+    total_return = (total_value - invested) / invested if invested else 0
     return {"portfolio": portfolio, "holdings": holdings, "cash": cash,
             "market_value": market_value, "total_value": total_value, "total_return": total_return}
 
@@ -389,7 +405,6 @@ def print_report(portfolio_id: int):
     print(f"  Portfolio: {p['name']}")
     print(f"  {p['description']}")
     print(f"{'='*60}")
-    print(f"  Initial Capital:  ₩{p['initial_capital']:>14,.0f}")
     cash_total = sum(
         v * _get_rate() if cur == "USD" else v for cur, v in s['cash'].items()
     ) if isinstance(s['cash'], dict) else s['cash']
@@ -470,7 +485,7 @@ def list_all() -> list[dict]:
     result = []
     for p in portfolios:
         s = summary(p["id"])
-        result.append({"id": p["id"], "name": p["name"], "initial_capital": p["initial_capital"],
+        result.append({"id": p["id"], "name": p["name"],
                         "total_value": s.get("total_value", 0), "total_return": s.get("total_return", 0),
                         "num_holdings": len(s.get("holdings", []))})
     return result
@@ -484,7 +499,6 @@ def compare(portfolio_ids: list[int]) -> pd.DataFrame:
         if not s:
             continue
         rows.append({"id": pid, "name": s["portfolio"]["name"],
-                      "initial_capital": s["portfolio"]["initial_capital"],
                       "total_value": s["total_value"], "return": s["total_return"],
                       "cash": s["cash"], "market_value": s["market_value"],
                       "holdings": len(s["holdings"]),

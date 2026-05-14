@@ -6,14 +6,16 @@ export async function PUT(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { portfolio_id, signal_threshold, vix_threshold, max_position_pct, min_cash_pct, allocator_strategy, rotation_metric, rotation_threshold } = await req.json()
+  const { portfolio_id, signal_threshold, vix_threshold, max_position_pct, min_cash_pct, allocator_strategy, rotation_metric, rotation_threshold, description } = await req.json()
   if (!portfolio_id) return NextResponse.json({ error: "portfolio_id required" }, { status: 400 })
 
-  // Validate ranges
-  if (signal_threshold < 0.1 || signal_threshold > 0.9) return NextResponse.json({ error: "signal_threshold must be 0.1–0.9" }, { status: 400 })
-  if (vix_threshold < 15 || vix_threshold > 50) return NextResponse.json({ error: "vix_threshold must be 15–50" }, { status: 400 })
-  if (max_position_pct < 0.05 || max_position_pct > 1.0) return NextResponse.json({ error: "max_position_pct must be 0.05–1.0" }, { status: 400 })
-  if (min_cash_pct < 0 || min_cash_pct > 0.9) return NextResponse.json({ error: "min_cash_pct must be 0–0.9" }, { status: 400 })
+  // Validate ranges (skip if only updating description)
+  if (signal_threshold != null) {
+    if (signal_threshold < 0.1 || signal_threshold > 0.9) return NextResponse.json({ error: "signal_threshold must be 0.1–0.9" }, { status: 400 })
+    if (vix_threshold < 15 || vix_threshold > 50) return NextResponse.json({ error: "vix_threshold must be 15–50" }, { status: 400 })
+    if (max_position_pct < 0.05 || max_position_pct > 1.0) return NextResponse.json({ error: "max_position_pct must be 0.05–1.0" }, { status: 400 })
+    if (min_cash_pct < 0 || min_cash_pct > 0.9) return NextResponse.json({ error: "min_cash_pct must be 0–0.9" }, { status: 400 })
+  }
 
   const validStrategies = ["equal_weight", "rebalance", "rotation"]
   if (allocator_strategy && !validStrategies.includes(allocator_strategy)) {
@@ -21,10 +23,11 @@ export async function PUT(req: Request) {
   }
 
   await supabase.from("portfolios").update({
-    signal_threshold,
-    vix_threshold,
-    max_position_pct,
-    min_cash_pct,
+    ...(description != null && { description }),
+    ...(signal_threshold != null && { signal_threshold }),
+    ...(vix_threshold != null && { vix_threshold }),
+    ...(max_position_pct != null && { max_position_pct }),
+    ...(min_cash_pct != null && { min_cash_pct }),
     ...(allocator_strategy && { allocator_strategy }),
     ...(rotation_metric && { rotation_metric }),
     ...(rotation_threshold != null && { rotation_threshold }),

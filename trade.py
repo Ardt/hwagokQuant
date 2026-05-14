@@ -170,8 +170,16 @@ def main():
     watchlist = [w["ticker"] for w in pm.get_watchlist(pid)]
     tickers = list(set(holdings + watchlist))
     if not tickers:
-        print("No tickers in portfolio. Add tickers first.")
-        return
+        # Auto-populate watchlist from both markets
+        log.info("No tickers in portfolio. Auto-populating watchlist from universe...")
+        from src.data.collector import get_universe as get_us_universe
+        from src.data.krx_collector import get_universe as get_krx_universe
+        for t in get_us_universe()[:cfg.WATCHLIST_MAX_PER_MARKET]:
+            pm.add_to_watchlist(pid, t)
+        for t in get_krx_universe()[:cfg.WATCHLIST_MAX_PER_MARKET]:
+            pm.add_to_watchlist(pid, t)
+        watchlist = [w["ticker"] for w in pm.get_watchlist(pid)]
+        tickers = list(set(watchlist))
 
     # Group tickers by market
     tickers_by_market = {}

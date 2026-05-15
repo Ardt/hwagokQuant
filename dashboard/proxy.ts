@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr"
 import { NextResponse, type NextRequest } from "next/server"
 
-export async function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // Skip auth for login page and auth callback
@@ -9,6 +9,10 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
+  return auth(request)
+}
+
+async function auth(request: NextRequest) {
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(

@@ -183,7 +183,7 @@ def train_market(market: str, tickers: list[str], full: bool = False, model_name
         summary = pd.DataFrame(results).sort_values("total_return", ascending=False)
         os.makedirs(cfg.DATA_DIR, exist_ok=True)
         suffix = f"_{market.lower()}" if market != "US" else ""
-        summary.to_csv(os.path.join(cfg.DATA_DIR, f"training_results{suffix}.csv"), index=False)
+        summary.to_csv(os.path.join(cfg.DATA_DIR, f"training_results{suffix}_{model_name}.csv"), index=False)
         log.info(f"\n{summary.to_string(index=False)}")
 
         # Watchlist management
@@ -279,6 +279,32 @@ def _sync_ticker_names():
         log.info(f"Synced {len(names)} ticker names to DB")
 
 
+def _sync_benchmarks():
+    """Fetch KOSPI and NASDAQ100 index prices and store in DB."""
+    from src.portfolio.db import get_session, text
+    import yfinance as yf
+
+    benchmarks = {"KOSPI": "^KS11", "NASDAQ100": "^NDX"}
+    try:
+        for name, symbol in benchmarks.items():
+            df = yf.download(symbol, start=cfg.START_DATE, end=cfg.END_DATE, progress=False)
+            if df.empty:
+                continue
+            if isinstance(df.columns, pd.MultiIndex):
+                df.columns = df.columns.get_level_values(0)
+            with get_session() as s:
+                for dt, row in df.iterrows():
+                    date_str = dt.strftime("%Y-%m-%d")
+                    s.execute(text(
+                        "INSERT INTO benchmarks (ticker, date, close) VALUES (:t, :d, :c) "
+                        "ON CONFLICT (ticker, date) DO UPDATE SET close = :c"
+                    ), {"t": name, "d": date_str, "c": float(row["Close"])})
+                s.commit()
+            log.info(f"Synced {name} benchmark ({len(df)} days)")
+    except Exception as e:
+        log.warning(f"Benchmark sync failed: {e}")
+
+
 def main():
     """Train models for each market: universe (top N by market cap) + portfolio extras."""
     full = "--full" in sys.argv
@@ -315,6 +341,9 @@ def main():
 
     # Sync ticker names to DB
     _sync_ticker_names()
+
+    # Sync benchmark prices (KOSPI, NASDAQ100)
+    _sync_benchmarks()
 
     # Update exchange rate
     try:

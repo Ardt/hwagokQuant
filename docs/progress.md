@@ -99,6 +99,18 @@ DATA FLOW — trade.py:
 - [x] Ticker name sync (train.py → DB)
 - [x] Exchange rate from yfinance (replaces FRED)
 - [x] Fix realized P&L calculation (only SELL transactions)
+- [x] Multi-model support (lstm_60, lstm_30 per portfolio)
+  - [x] MODELS dict in config.py
+  - [x] Per-portfolio model_name setting + dashboard selector
+  - [x] Models stored in data/models/{model_name}/{ticker}.pt
+  - [x] train.py --model=<name> flag
+  - [x] Training results per model
+- [x] market_cap_top_n (per-portfolio watchlist filter)
+- [x] Batch data fetching (yfinance multi-ticker, pykrx by_ticker daily)
+- [x] Information Ratio (vs KOSPI/NASDAQ100 benchmark)
+  - [x] Benchmark prices synced by train.py
+  - [x] Dashboard displays Info Ratio on portfolio page
+  - [x] Training page grouped by model
 - [ ] Live testing / Paper trading
 
 ## Implementation (v1 → v2)

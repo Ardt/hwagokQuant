@@ -1,7 +1,7 @@
 import { createSupabaseServer } from "@/lib/supabase-server"
 import { getTickerNames } from "@/lib/ticker-names"
 import { getLatestRate } from "@/lib/currency"
-import { computeSharpe, computeMaxDrawdown, computeRealizedPnl } from "@/lib/analytics"
+import { computeSharpe, computeMaxDrawdown, computeRealizedPnl, computeInformationRatio } from "@/lib/analytics"
 import { TradeForm } from "@/components/trade-form"
 import { CreatePortfolio } from "@/components/portfolio-manage"
 import { PortfolioContent } from "@/components/portfolio-content"
@@ -40,7 +40,22 @@ export default async function PortfolioPage() {
       const realizedPnl = computeRealizedPnl(transactions || [])
       const recentTxns = [...(transactions || [])].reverse().slice(0, 20)
 
-      return { ...p, holdings: holdings || [], snapshots: snapshots || [], transactions: recentTxns, allTransactions: transactions || [], watchlist: watchlist || [], sharpe, maxDrawdown, realizedPnl }
+      // Compute information ratio vs benchmark
+      let infoRatio = 0
+      if (snapshots && snapshots.length > 2) {
+        const snapshotDates = snapshots.map((s: any) => s.timestamp?.slice(0, 10))
+        const { data: benchData } = await supabase
+          .from("benchmarks")
+          .select("date, close")
+          .in("date", snapshotDates)
+          .eq("ticker", holdings?.some((h: any) => /^\d{6}$/.test(h.ticker)) ? "KOSPI" : "NASDAQ100")
+          .order("date", { ascending: true })
+        if (benchData && benchData.length > 2) {
+          infoRatio = computeInformationRatio(snapshots, benchData.map((b: any) => b.close))
+        }
+      }
+
+      return { ...p, holdings: holdings || [], snapshots: snapshots || [], transactions: recentTxns, allTransactions: transactions || [], watchlist: watchlist || [], sharpe, maxDrawdown, realizedPnl, infoRatio }
     })
   )
 

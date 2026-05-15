@@ -29,6 +29,7 @@ interface PortfolioData {
   allTransactions: any[]
   watchlist: { ticker: string }[]
   sharpe: number
+  infoRatio: number
   maxDrawdown: number
   realizedPnl: { ticker: string; shares: number; sell_price: number; cost_basis: number; pnl: number; timestamp: string }[]
 }
@@ -107,6 +108,14 @@ export function PortfolioContent({ portfolios, names, rate }: {
                   {p.sharpe.toFixed(2)}
                 </p>
               </div>
+              {p.infoRatio !== 0 && (
+                <div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Info Ratio (vs Index)</p>
+                  <p className={`text-sm font-semibold ${p.infoRatio >= 0.5 ? "text-emerald-600 dark:text-emerald-400" : p.infoRatio >= 0 ? "text-gray-900 dark:text-white" : "text-red-600 dark:text-red-400"}`}>
+                    {p.infoRatio.toFixed(2)}
+                  </p>
+                </div>
+              )}
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Max Drawdown</p>
                 <p className="text-sm font-semibold text-red-600 dark:text-red-400">

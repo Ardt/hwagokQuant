@@ -83,6 +83,22 @@ DATA FLOW — trade.py:
   - [ ] Hold freed cash on rule trigger (no reallocation same day)
 - [ ] Multi-portfolio support in trade.py (shared data, sequential loop)
 - [x] Dashboard: add "Transfer In" and "Adjust" transaction types (no cash impact)
+- [ ] Watchlist source tracking
+  - [ ] Add source column to watchlist ("user" / "auto")
+  - [ ] train.py only removes "auto" items
+  - [ ] On buy → remove from watchlist
+  - [ ] On full sell → add back only if source was "auto"
+- [ ] Market hours awareness (for real broker execution)
+  - [ ] Per-market execution scheduling (KRX 09:30 KST, US 23:30 KST)
+  - [ ] Order queue: generate signals once, execute when market opens
+  - [ ] Handle cross-market cash dependency (sell US → buy KRX next day)
+- [ ] Ticker locking (protect manually-added holdings from model sell signals)
+- [x] Executor facade (paper/broker abstraction)
+- [x] Market-hour aware execution (KRX/US order by proximity, skip closed markets)
+- [x] Simulation script (simulate.py with END_DATE, correct timestamps)
+- [x] Ticker name sync (train.py → DB)
+- [x] Exchange rate from yfinance (replaces FRED)
+- [x] Fix realized P&L calculation (only SELL transactions)
 - [ ] Live testing / Paper trading
 
 ## Implementation (v1 → v2)

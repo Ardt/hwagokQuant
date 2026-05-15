@@ -20,7 +20,7 @@ def setup(level=logging.INFO):
     # Console: INFO level, clean format
     console = logging.StreamHandler()
     console.setLevel(level)
-    console.setFormatter(logging.Formatter("%(levelname)s | %(name)s | %(message)s"))
+    console.setFormatter(logging.Formatter("%(asctime)s | %(levelname)s | %(name)s | %(message)s", datefmt="%H:%M:%S"))
 
     # File: DEBUG level, with timestamps
     file = logging.FileHandler(LOG_FILE, encoding="utf-8")

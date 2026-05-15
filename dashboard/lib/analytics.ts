@@ -35,7 +35,7 @@ export function computeRealizedPnl(transactions: { ticker: string; action: strin
     if (t.action === "BUY") {
       if (!buys[t.ticker]) buys[t.ticker] = []
       buys[t.ticker].push({ shares: t.shares, price: t.price })
-    } else {
+    } else if (t.action === "SELL") {
       let remaining = t.shares
       let cost = 0
       while (remaining > 0 && buys[t.ticker]?.length) {

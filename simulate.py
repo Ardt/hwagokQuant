@@ -9,6 +9,10 @@ Usage: python simulate.py --start=2026-04-01 --end=2026-05-10
 import sys
 import importlib
 from datetime import date, timedelta
+from src import logger
+
+logger.setup()
+log = logger.get("simulate")
 
 START = next((a.split("=")[1] for a in sys.argv if a.startswith("--start=")), "2026-04-01")
 END = next((a.split("=")[1] for a in sys.argv if a.startswith("--end=")), "2026-05-10")
@@ -30,13 +34,11 @@ def main():
 
     print(f"=== Simulation: {START} → {END} ===")
     days = list(daterange(START, END))
-    print(f"Trading days: {len(days)}")
+    log.info(f"Simulation: {START} → {END} ({len(days)} trading days)")
 
     for i, day in enumerate(days):
         day_str = day.isoformat()
-        print(f"\n{'='*60}")
-        print(f"  Day {i+1}/{len(days)}: {day_str}")
-        print(f"{'='*60}")
+        log.info(f"--- Day {i+1}/{len(days)}: {day_str} ---")
 
         # Set END_DATE so fetchers stop at this day
         cfg.END_DATE = day_str
@@ -51,7 +53,7 @@ def main():
                 importlib.reload(train)
                 train.main()
             except Exception as e:
-                print(f"  [TRAIN ERROR] {e}")
+                log.error(f"[TRAIN ERROR] {e}")
 
         # Trade
         try:
@@ -62,9 +64,9 @@ def main():
             importlib.reload(trade)
             trade.main()
         except Exception as e:
-            print(f"  [TRADE ERROR] {e}")
+            log.error(f"[TRADE ERROR] {e}")
 
-    print(f"\n=== Simulation complete: {len(days)} days ===")
+    log.info(f"Simulation complete: {len(days)} days")
 
 
 if __name__ == "__main__":

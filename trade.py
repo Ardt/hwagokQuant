@@ -2,6 +2,7 @@
 
 import os
 import sys
+from datetime import date
 import config as cfg
 from src import logger
 from src.market import detect_market, detect_portfolio_market, get_config
@@ -197,11 +198,22 @@ def main():
     # Fetch data and generate signals per market
     log.info("Fetching market data...")
     results = []
+    trading_date = cfg.END_DATE or date.today().isoformat()
     for market, market_tickers in tickers_by_market.items():
         fetch_all = _get_collector(market)
         fetch_macro, _ = _get_macro(market)
         all_data = fetch_all(market_tickers)
         macro_df = fetch_macro()
+
+        # Truncate to END_DATE for simulation
+        if cfg.END_DATE:
+            all_data = all_data[all_data.index <= cfg.END_DATE]
+            macro_df = macro_df[macro_df.index <= cfg.END_DATE]
+
+        # Skip market if no data for trading date (market closed)
+        if all_data.empty or str(all_data.index.max().date()) < trading_date:
+            log.info(f"{market}: market closed on {trading_date}, skipping")
+            continue
 
         for ticker in market_tickers:
             if ticker not in all_data["Ticker"].values:
@@ -246,7 +258,7 @@ def main():
         cur = "₩" if detect_market(r["ticker"]) == "KRX" else "$"
         print(f"  {r['ticker']}: {label} ({r['latest_prob']:.2%}, {cur}{r['latest_price']:,.0f})")
 
-    # Plan trades via allocator
+    # Plan trades via allocator (per market: KRX sell/buy first, then US)
     strategy_name = STRATEGY_NAME or portfolio.get("allocator_strategy") or "equal_weight"
     allocator = get_allocator(strategy_name)
     log.info(f"Using allocation strategy: {strategy_name}")
@@ -254,14 +266,59 @@ def main():
     port_summary = pm.summary(pid)
     cash_by_cur = port_summary["cash"] if isinstance(port_summary["cash"], dict) else {"USD": port_summary["cash"]}
     from src.portfolio.db import get_exchange_rate
-    alloc_signals = [{"ticker": r["ticker"], "signal": r["latest_signal"],
-                      "probability": r["latest_prob"], "price": r["latest_price"]} for r in results]
     strategy["_watchlist"] = watchlist
     strategy["_holdings"] = holdings
     strategy["_cash_by_currency"] = cash_by_cur
     strategy["_exchange_rate"] = get_exchange_rate()
-    trades = allocator(alloc_signals, port_summary["holdings"],
-                       total_cash, port_summary["total_value"], strategy)
+
+    # Run strategy per market in order: closest to open first, skip already-closed markets
+    from datetime import datetime, timezone, timedelta
+    from zoneinfo import ZoneInfo
+    now_kst = datetime.now(timezone(timedelta(hours=9)))
+    us_eastern = ZoneInfo("America/New_York")
+    is_dst = datetime.now(us_eastern).dst() != timedelta(0)
+    current_hour = now_kst.hour + now_kst.minute / 60
+
+    # Market hours in KST
+    krx_open, krx_close = 9.0, 15.5
+    us_open = 22.5 if is_dst else 23.5
+    us_close = (us_open + 6.5) % 24  # 6.5h session
+
+    # Determine which markets to trade (not already closed today)
+    tradeable_markets = []
+    # KRX: skip if current time is past close and before next open
+    if current_hour < krx_close or current_hour >= krx_open:
+        tradeable_markets.append(("KRX", (krx_open - current_hour) % 24))
+    # US: skip if current time is past close and before next open
+    if current_hour >= us_open or current_hour < us_close:
+        tradeable_markets.append(("US", (us_open - current_hour) % 24))
+
+    # In simulation mode or if no time filtering needed, trade all
+    if cfg.END_DATE:
+        tradeable_markets = [("KRX", 0), ("US", 1)]
+
+    # Sort by distance to open (closest first)
+    tradeable_markets.sort(key=lambda x: x[1])
+
+    all_trades = []
+    for market_key, _ in tradeable_markets:
+        market_signals = [{"ticker": r["ticker"], "signal": r["latest_signal"],
+                           "probability": r["latest_prob"], "price": r["latest_price"]}
+                          for r in results if detect_market(r["ticker"]) == market_key]
+        if not market_signals:
+            continue
+        market_trades = allocator(market_signals, port_summary["holdings"],
+                                  sum(cash_by_cur.values()), port_summary["total_value"], strategy)
+        all_trades.extend(market_trades or [])
+        # Update cash after this market's trades (sells add, buys subtract)
+        for t in (market_trades or []):
+            cur = "KRW" if detect_market(t["ticker"]) == "KRX" else "USD"
+            if t["action"] == "SELL":
+                cash_by_cur[cur] = cash_by_cur.get(cur, 0) + t["total"]
+            elif t["action"] == "BUY":
+                cash_by_cur[cur] = cash_by_cur.get(cur, 0) - t["total"]
+
+    trades = all_trades
     if not trades:
         log.info("No trades (HOLD only)")
         for r in results:
@@ -283,7 +340,10 @@ def main():
         return
 
     # Execute
-    log.info(f"Paper trading {len(trades)} orders")
+    from src.executor import get_executor
+    exec_name = portfolio.get("executor") or "paper"
+    exe = get_executor(exec_name)
+    log.info(f"Executing {len(trades)} orders via {exec_name}")
     for r in results:
         pm.record_signal(pid, r["ticker"], r["latest_signal"], r["latest_prob"],
                          predicted_high=r.get("predicted_high"), predicted_low=r.get("predicted_low"))
@@ -292,28 +352,22 @@ def main():
     trade_lines = []
     for t in trades:
         if t["action"] == "EXCHANGE":
-            # Record exchange: source currency loses, target currency gains
             from_cur = t["ticker"].replace("CASH_", "")
             to_cur = "KRW" if from_cur == "USD" else "USD"
             rate = t["shares"]
-            amount = t["price"]  # amount in source currency
-            received = t["total"]  # amount in target currency
-            from src.portfolio import db as _db
-            # Withdraw from source (total = 1 * amount)
-            _db.add_transaction(pid, f"CASH_{from_cur}", "WITHDRAW", 1, amount)
-            # Deposit to target (total = 1 * received)
-            _db.add_transaction(pid, f"CASH_{to_cur}", "DEPOSIT", 1, received)
+            amount = t["price"]
+            exe.exchange(pid, from_cur, to_cur, amount, rate)
             trade_lines.append(f"EXCHANGE {from_cur}→{to_cur} @{rate:.0f}")
             continue
         cur = "₩" if detect_market(t["ticker"]) == "KRX" else "$"
         if t["action"] == "BUY":
-            pm.buy(pid, t["ticker"], t["shares"], t["price"])
+            exe.buy(pid, t["ticker"], t["shares"], t["price"])
             trade_lines.append(f"BUY {t['shares']} {t['ticker']} @ {cur}{t['price']:,.0f}")
         else:
             h = holdings_before.get(t["ticker"])
             avg_cost = h["avg_cost"] if h else t["price"]
             pnl = (t["price"] - avg_cost) * t["shares"]
-            pm.sell(pid, t["ticker"], t["shares"], t["price"])
+            exe.sell(pid, t["ticker"], t["shares"], t["price"])
             trade_lines.append(f"SELL {t['shares']} {t['ticker']} | P&L: {cur}{pnl:+,.0f}")
 
     pm.take_snapshot(pid)

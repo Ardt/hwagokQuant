@@ -2,6 +2,7 @@
 
 import os
 import sys
+from datetime import date
 import pandas as pd
 import config as cfg
 from src import logger
@@ -152,6 +153,17 @@ def train_market(market: str, tickers: list[str], full: bool = False):
 
     all_data = fetch_all(tickers)
     macro_df = fetch_macro()
+
+    # Truncate to END_DATE for simulation
+    if cfg.END_DATE:
+        all_data = all_data[all_data.index <= cfg.END_DATE]
+        macro_df = macro_df[macro_df.index <= cfg.END_DATE]
+
+    # Skip if market closed (no new data for today)
+    trading_date = cfg.END_DATE or date.today().isoformat()
+    if all_data.empty or str(all_data.index.max().date()) < trading_date:
+        log.info(f"{market}: market closed on {trading_date}, skipping training")
+        return
 
     results = []
     for ticker in tickers:

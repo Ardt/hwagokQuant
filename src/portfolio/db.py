@@ -14,6 +14,8 @@ Base = declarative_base()
 
 
 def _now() -> str:
+    if cfg.END_DATE:
+        return f"{cfg.END_DATE}T09:30:00+00:00"
     return datetime.now(timezone.utc).isoformat()
 
 

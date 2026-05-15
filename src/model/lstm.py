@@ -113,10 +113,12 @@ def predict(model: LSTMModel, X: np.ndarray) -> np.ndarray:
         return model(X_t).cpu().numpy()
 
 
-def save_model(model: LSTMModel, ticker: str):
-    """Save model weights to data/models/{ticker}_lstm.pt"""
-    os.makedirs(MODELS_DIR, exist_ok=True)
-    path = os.path.join(MODELS_DIR, f"{ticker}_lstm.pt")
+def save_model(model: LSTMModel, ticker: str, model_name: str = None):
+    """Save model weights to data/models/{model_name}/{ticker}.pt"""
+    model_name = model_name or cfg.DEFAULT_MODEL
+    model_dir = os.path.join(MODELS_DIR, model_name)
+    os.makedirs(model_dir, exist_ok=True)
+    path = os.path.join(model_dir, f"{ticker}.pt")
     tmp_path = path + ".tmp"
     torch.save({"state_dict": model.state_dict(), "input_size": model.lstm.input_size,
                 "output_size": model.fc.out_features}, tmp_path)
@@ -126,11 +128,15 @@ def save_model(model: LSTMModel, ticker: str):
     log.info(f"Saved model: {path}")
 
 
-def load_model(ticker: str) -> LSTMModel | None:
-    """Load model weights from data/models/{ticker}_lstm.pt"""
-    path = os.path.join(MODELS_DIR, f"{ticker}_lstm.pt")
+def load_model(ticker: str, model_name: str = None) -> LSTMModel | None:
+    """Load model weights from data/models/{model_name}/{ticker}.pt"""
+    model_name = model_name or cfg.DEFAULT_MODEL
+    path = os.path.join(MODELS_DIR, model_name, f"{ticker}.pt")
     if not os.path.exists(path):
-        return None
+        # Fallback to legacy flat path
+        path = os.path.join(MODELS_DIR, f"{ticker}_lstm.pt")
+        if not os.path.exists(path):
+            return None
     checkpoint = torch.load(path, map_location=device, weights_only=True)
     model = LSTMModel(input_size=checkpoint["input_size"]).to(device)
     model.load_state_dict(checkpoint["state_dict"])
@@ -138,5 +144,9 @@ def load_model(ticker: str) -> LSTMModel | None:
     return model
 
 
-def has_saved_model(ticker: str) -> bool:
+def has_saved_model(ticker: str, model_name: str = None) -> bool:
+    model_name = model_name or cfg.DEFAULT_MODEL
+    path = os.path.join(MODELS_DIR, model_name, f"{ticker}.pt")
+    if os.path.exists(path):
+        return True
     return os.path.exists(os.path.join(MODELS_DIR, f"{ticker}_lstm.pt"))

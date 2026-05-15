@@ -95,7 +95,7 @@ def fetch_ohlcv(ticker: str, start: str = None) -> pd.DataFrame | None:
 
 
 def fetch_all(tickers: list[str] | None = None) -> pd.DataFrame:
-    """Fetch OHLCV for all tickers, only downloading missing date ranges (incremental)."""
+    """Fetch OHLCV for all tickers using batch download where possible."""
     from datetime import date
 
     if tickers is None:
@@ -109,36 +109,77 @@ def fetch_all(tickers: list[str] | None = None) -> pd.DataFrame:
     if os.path.exists(ohlcv_path):
         existing = pd.read_csv(ohlcv_path, index_col=0, parse_dates=True)
 
-    frames = []
-    for i, ticker in enumerate(tickers):
+    # Split tickers into cached (up to date) vs needs-fetch
+    cached_frames = []
+    tickers_to_fetch = []
+    fetch_start = cfg.START_DATE
+
+    for ticker in tickers:
         if existing is not None and ticker in existing["Ticker"].values:
             ticker_data = existing[existing["Ticker"] == ticker]
             last_date = ticker_data.index.max()
             if str(last_date.date()) >= today:
-                frames.append(ticker_data)
+                cached_frames.append(ticker_data)
                 continue
-            # Fetch only missing days
+            # Need incremental update from last_date
+            cached_frames.append(ticker_data)
+            tickers_to_fetch.append(ticker)
             start = (last_date + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-            new = fetch_ohlcv(ticker, start=start)
-            if new is not None and not new.empty:
-                frames.append(pd.concat([ticker_data, new]))
-                log.debug(f"[{i + 1}/{len(tickers)}] {ticker} updated from {start}")
-            else:
-                frames.append(ticker_data)
+            fetch_start = max(fetch_start, start) if fetch_start != cfg.START_DATE else start
         else:
-            df = fetch_ohlcv(ticker)
-            if df is not None:
-                frames.append(df)
-                log.debug(f"[{i + 1}/{len(tickers)}] {ticker} ({len(df)} rows)")
-            else:
-                log.warning(f"[{i + 1}/{len(tickers)}] {ticker} skipped")
+            tickers_to_fetch.append(ticker)
 
-    if not frames:
+    # Batch download all tickers that need data
+    new_frames = []
+    if tickers_to_fetch:
+        log.info(f"Batch downloading {len(tickers_to_fetch)} tickers...")
+        try:
+            batch = yf.download(tickers_to_fetch, start=cfg.START_DATE, end=today, progress=False)
+            if not batch.empty:
+                # yfinance returns MultiIndex columns: (Price, Ticker)
+                if isinstance(batch.columns, pd.MultiIndex):
+                    for ticker in tickers_to_fetch:
+                        try:
+                            df = batch.xs(ticker, level=1, axis=1)[["Open", "High", "Low", "Close", "Volume"]].dropna()
+                            if not df.empty:
+                                df["Ticker"] = ticker
+                                new_frames.append(df)
+                        except (KeyError, TypeError):
+                            pass
+                else:
+                    # Single ticker case
+                    batch = batch[["Open", "High", "Low", "Close", "Volume"]]
+                    batch["Ticker"] = tickers_to_fetch[0]
+                    new_frames.append(batch)
+        except Exception as e:
+            log.error(f"Batch download failed: {e}, falling back to individual")
+            for ticker in tickers_to_fetch:
+                df = fetch_ohlcv(ticker)
+                if df is not None:
+                    new_frames.append(df)
+
+    # Merge cached + new, keeping latest data per ticker
+    all_frames = []
+    new_by_ticker = {df["Ticker"].iloc[0]: df for df in new_frames if not df.empty}
+    for frame in cached_frames:
+        ticker = frame["Ticker"].iloc[0]
+        if ticker in new_by_ticker:
+            # Merge: keep cached + append new dates only
+            new_data = new_by_ticker.pop(ticker)
+            new_data = new_data[new_data.index > frame.index.max()]
+            all_frames.append(pd.concat([frame, new_data]))
+        else:
+            all_frames.append(frame)
+    # Add tickers that had no cache
+    for df in new_by_ticker.values():
+        all_frames.append(df)
+
+    if not all_frames:
         raise RuntimeError("No data fetched. Check internet connection or try fewer tickers.")
 
-    combined = pd.concat(frames)
+    combined = pd.concat(all_frames)
     combined.to_csv(ohlcv_path)
-    log.info(f"Saved OHLCV to {ohlcv_path}")
+    log.info(f"Saved OHLCV to {ohlcv_path} ({len(tickers_to_fetch)} fetched, {len(cached_frames)} cached)")
     return combined
 
 

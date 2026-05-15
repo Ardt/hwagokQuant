@@ -6,7 +6,7 @@ export async function PUT(req: Request) {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { portfolio_id, signal_threshold, vix_threshold, max_position_pct, min_cash_pct, allocator_strategy, rotation_metric, rotation_threshold, description } = await req.json()
+  const { portfolio_id, signal_threshold, vix_threshold, max_position_pct, min_cash_pct, allocator_strategy, model_name, market_cap_top_n, rotation_metric, rotation_threshold, description } = await req.json()
   if (!portfolio_id) return NextResponse.json({ error: "portfolio_id required" }, { status: 400 })
 
   // Validate ranges (skip if only updating description)
@@ -29,6 +29,8 @@ export async function PUT(req: Request) {
     ...(max_position_pct != null && { max_position_pct }),
     ...(min_cash_pct != null && { min_cash_pct }),
     ...(allocator_strategy && { allocator_strategy }),
+    ...(model_name && { model_name }),
+    ...(market_cap_top_n != null && { market_cap_top_n }),
     ...(rotation_metric && { rotation_metric }),
     ...(rotation_threshold != null && { rotation_threshold }),
     updated_at: new Date().toISOString(),

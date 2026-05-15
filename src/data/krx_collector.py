@@ -85,40 +85,73 @@ def fetch_ohlcv(ticker: str, start: str = None) -> pd.DataFrame | None:
 
 
 def fetch_all(tickers: list[str] | None = None) -> pd.DataFrame:
-    """Fetch OHLCV for all KRX tickers, incremental."""
+    """Fetch OHLCV for all KRX tickers. Uses batch daily fetch for incremental updates."""
     if tickers is None:
         tickers = get_universe()
 
     os.makedirs(cfg.DATA_DIR, exist_ok=True)
     ohlcv_path = os.path.join(cfg.DATA_DIR, _mcfg["data_files"]["ohlcv"])
     today = cfg.END_DATE or date.today().strftime("%Y-%m-%d")
+    today_fmt = today.replace("-", "")
 
     existing = None
     if os.path.exists(ohlcv_path):
         existing = pd.read_csv(ohlcv_path, index_col=0, parse_dates=True, low_memory=False)
 
+    tickers_set = set(tickers)
+
+    # Check if cache is up to date
+    if existing is not None and not existing.empty:
+        last_date = str(existing.index.max().date())
+        if last_date >= today:
+            # All cached, just filter to requested tickers
+            log.info("KRX OHLCV cache up to date")
+            return existing[existing["Ticker"].isin(tickers_set)]
+
+        # Incremental: fetch missing days using batch (one call per day)
+        log.info(f"KRX incremental update from {last_date} to {today}...")
+        start_date = (existing.index.max() + pd.Timedelta(days=1)).strftime("%Y%m%d")
+        new_frames = []
+        current = start_date
+        while current <= today_fmt:
+            try:
+                day_df = stock.get_market_ohlcv_by_ticker(current, market="ALL")
+                time.sleep(1)
+                if not day_df.empty:
+                    day_df = day_df.rename(columns={
+                        "시가": "Open", "고가": "High", "저가": "Low",
+                        "종가": "Close", "거래량": "Volume",
+                    })
+                    day_df = day_df[["Open", "High", "Low", "Close", "Volume"]]
+                    day_df["Ticker"] = day_df.index
+                    day_df.index = pd.DatetimeIndex([current] * len(day_df))
+                    day_df = day_df[day_df["Ticker"].isin(tickers_set)]
+                    if not day_df.empty:
+                        new_frames.append(day_df)
+            except Exception:
+                pass
+            current = (pd.Timestamp(current) + pd.Timedelta(days=1)).strftime("%Y%m%d")
+
+        if new_frames:
+            new_data = pd.concat(new_frames)
+            combined = pd.concat([existing, new_data])
+        else:
+            combined = existing
+        combined = combined[combined["Ticker"].isin(tickers_set)]
+        combined.to_csv(ohlcv_path)
+        log.info(f"Saved KRX OHLCV ({len(combined)} rows, {len(new_frames)} days added)")
+        return combined
+
+    # Full fetch (no cache) — fall back to per-ticker
+    log.info(f"KRX full fetch for {len(tickers)} tickers...")
     frames = []
     for i, ticker in enumerate(tickers):
-        if existing is not None and ticker in existing["Ticker"].values:
-            ticker_data = existing[existing["Ticker"] == ticker]
-            last_date = ticker_data.index.max()
-            if str(last_date.date()) >= today:
-                frames.append(ticker_data)
-                continue
-            start = (last_date + pd.Timedelta(days=1)).strftime("%Y-%m-%d")
-            new = fetch_ohlcv(ticker, start=start)
-            if new is not None and not new.empty:
-                frames.append(pd.concat([ticker_data, new]))
-                log.debug(f"[{i+1}/{len(tickers)}] {ticker} updated")
-            else:
-                frames.append(ticker_data)
+        df = fetch_ohlcv(ticker)
+        if df is not None:
+            frames.append(df)
+            log.debug(f"[{i+1}/{len(tickers)}] {ticker} ({len(df)} rows)")
         else:
-            df = fetch_ohlcv(ticker)
-            if df is not None:
-                frames.append(df)
-                log.debug(f"[{i+1}/{len(tickers)}] {ticker} ({len(df)} rows)")
-            else:
-                log.warning(f"[{i+1}/{len(tickers)}] {ticker} skipped")
+            log.warning(f"[{i+1}/{len(tickers)}] {ticker} skipped")
 
     if not frames:
         raise RuntimeError("No KRX data fetched.")

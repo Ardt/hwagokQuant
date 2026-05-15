@@ -51,10 +51,13 @@ def _get_sentiment(market: str):
 
 
 def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
-                 market: str, incremental: bool = False) -> dict | None:
+                 market: str, incremental: bool = False, model_name: str = None) -> dict | None:
     """Train LSTM for a single ticker."""
+    model_name = model_name or cfg.DEFAULT_MODEL
+    mcfg_model = cfg.MODELS[model_name]
+    seq_len = mcfg_model["sequence_length"]
     mcfg = get_config(market)
-    log.info(f"{'Fine-tuning' if incremental else 'Training'} {ticker} ({market})")
+    log.info(f"{'Fine-tuning' if incremental else 'Training'} {ticker} ({market}, {model_name})")
 
     df = add_technical_indicators(df)
 
@@ -70,7 +73,7 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
     df = merge_macro(df, macro_df)
     df = df.dropna()
 
-    if len(df) < cfg.SEQUENCE_LENGTH + 50:
+    if len(df) < seq_len + 50:
         log.warning(f"{ticker}: not enough data ({len(df)} rows), skipping")
         return None
 
@@ -79,10 +82,10 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
     # Last row has NaN from shift(-1), exclude it
     features = features[:-1]
     target = target[:-1]
-    X, y = create_sequences(features, target, cfg.SEQUENCE_LENGTH)
+    X, y = create_sequences(features, target, seq_len)
 
     if incremental:
-        if not has_saved_model(ticker):
+        if not has_saved_model(ticker, model_name):
             log.warning(f"{ticker}: no existing model, doing full train")
             incremental = False
         else:
@@ -90,7 +93,7 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
             X_train, y_train = X[-recent:], y[-recent:]
             X_val, y_val = X[-30:], y[-30:]
 
-            model = load_model(ticker)
+            model = load_model(ticker, model_name)
             from src.model.lstm import make_dataloader, device, _combined_loss
             import torch
 
@@ -109,7 +112,7 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
                     optimizer.step()
                     loss_sum += loss.item()
 
-            save_model(model, ticker)
+            save_model(model, ticker, model_name)
             raw = predict(model, X_val)
             probs = raw[:, 0]
             signals = generate_signals(probs)
@@ -129,12 +132,12 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
         return None
 
     model, history = train_model(X_train, y_train, X_val, y_val)
-    save_model(model, ticker)
+    save_model(model, ticker, model_name)
 
     raw = predict(model, X_val)
     probs = raw[:, 0]
     signals = generate_signals(probs)
-    test_prices = df["Close"].iloc[split + cfg.SEQUENCE_LENGTH:]
+    test_prices = df["Close"].iloc[split + seq_len:]
     result = backtest(test_prices, signals, mcfg["initial_capital"])
 
     m = result["metrics"]
@@ -142,8 +145,9 @@ def train_ticker(ticker: str, df: pd.DataFrame, macro_df: pd.DataFrame,
     return {"ticker": ticker, **m}
 
 
-def train_market(market: str, tickers: list[str], full: bool = False):
+def train_market(market: str, tickers: list[str], full: bool = False, model_name: str = None):
     """Train all tickers for a given market."""
+    model_name = model_name or cfg.DEFAULT_MODEL
     mcfg = get_config(market)
     incremental = not full
     log.info(f"=== Training {market} ({len(tickers)} tickers, {'full' if full else 'incremental'}) ===")
@@ -170,7 +174,7 @@ def train_market(market: str, tickers: list[str], full: bool = False):
         if ticker not in all_data["Ticker"].values:
             continue
         ticker_df = all_data[all_data["Ticker"] == ticker].copy().drop(columns=["Ticker"])
-        result = train_ticker(ticker, ticker_df, macro_df, market, incremental=incremental)
+        result = train_ticker(ticker, ticker_df, macro_df, market, incremental=incremental, model_name=model_name)
         if result:
             results.append(result)
 
@@ -206,19 +210,19 @@ def _update_watchlists(market: str, summary: pd.DataFrame):
     if not market_portfolios:
         return
 
+    universe = _get_universe(market)
     strong = summary[(summary["sharpe_ratio"] > 1.0) & (summary["total_return"] > 0)]
     if not strong.empty:
         added = []
-        full = False
         for _, row in strong.iterrows():
-            if full:
-                break
+            if row["ticker"] not in set(universe):
+                continue
             for p in market_portfolios:
-                if not pm.add_to_watchlist(p["id"], row["ticker"]):
-                    full = True
-                    break
-            if not full:
-                added.append(f"{row['ticker']} (sharpe={row['sharpe_ratio']:.2f})")
+                top_n = p.get("market_cap_top_n") or 100
+                if row["ticker"] not in set(universe[:top_n]):
+                    continue
+                pm.add_to_watchlist(p["id"], row["ticker"])
+            added.append(f"{row['ticker']} (sharpe={row['sharpe_ratio']:.2f})")
         if added:
             notify.send(f"[{market}] Strong performers:\n" + "\n".join(added), "Training Alert")
 
@@ -278,21 +282,36 @@ def _sync_ticker_names():
 def main():
     """Train models for each market: universe (top N by market cap) + portfolio extras."""
     full = "--full" in sys.argv
+    model_arg = next((a.split("=")[1] for a in sys.argv if a.startswith("--model=")), None)
+    models_to_train = [model_arg] if model_arg else list(cfg.MODELS.keys())
 
-    for market in cfg.MARKETS:
-        log.info(f"--- Preparing {market} ---")
+    for model_name in models_to_train:
+        mcfg_model = cfg.MODELS[model_name]
+        log.info(f"=== Training model: {model_name} (seq={mcfg_model['sequence_length']}) ===")
 
-        # 1. Get universe (top N by market cap)
-        universe = _get_universe(market)
+        # Override legacy globals for this model
+        cfg.SEQUENCE_LENGTH = mcfg_model["sequence_length"]
+        cfg.HIDDEN_SIZE = mcfg_model["hidden_size"]
+        cfg.NUM_LAYERS = mcfg_model["num_layers"]
+        cfg.DROPOUT = mcfg_model["dropout"]
+        cfg.LEARNING_RATE = mcfg_model["learning_rate"]
+        cfg.EPOCHS = mcfg_model["epochs"]
+        cfg.BATCH_SIZE = mcfg_model["batch_size"]
 
-        # 2. Merge in portfolio tickers not already in universe
-        extras = _get_portfolio_tickers(market) - set(universe)
-        if extras:
-            log.info(f"{market}: {len(extras)} extra tickers from portfolios: {list(extras)}")
-        tickers = universe + list(extras)
+        for market in cfg.MARKETS:
+            log.info(f"--- Preparing {market} ---")
 
-        # 3. Train
-        train_market(market, tickers, full=full)
+            # 1. Get universe (top N by market cap)
+            universe = _get_universe(market)
+
+            # 2. Merge in portfolio tickers not already in universe
+            extras = _get_portfolio_tickers(market) - set(universe)
+            if extras:
+                log.info(f"{market}: {len(extras)} extra tickers from portfolios: {list(extras)}")
+            tickers = universe + list(extras)
+
+            # 3. Train
+            train_market(market, tickers, full=full, model_name=model_name)
 
     # Sync ticker names to DB
     _sync_ticker_names()

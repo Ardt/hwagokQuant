@@ -27,6 +27,8 @@ class Portfolio(Base):
     name = Column(Text, unique=True, nullable=False)
     description = Column(Text, default="")
     allocator_strategy = Column(Text, default="equal_weight")
+    model_name = Column(Text, default="lstm_60")
+    market_cap_top_n = Column(Integer, default=100)
     signal_threshold = Column(Float)
     vix_threshold = Column(Float)
     max_position_pct = Column(Float)

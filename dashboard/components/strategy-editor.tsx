@@ -9,6 +9,8 @@ interface StrategyParams {
   max_position_pct: number
   min_cash_pct: number
   allocator_strategy: string
+  model_name: string
+  market_cap_top_n: number
   rotation_metric: string
   rotation_threshold: number
 }
@@ -44,6 +46,19 @@ export function StrategyEditor({ portfolioId, params }: { portfolioId: number; p
         <Settings className="w-3 h-3" /> Strategy Parameters
       </h4>
       <div className="grid grid-cols-2 gap-3">
+        <div className="col-span-2">
+          <label className="text-xs font-medium text-gray-900 dark:text-white">Model</label>
+          <p className="text-[10px] text-gray-400 mb-1">LSTM model configuration for signal generation</p>
+          <select
+            value={form.model_name || "lstm_60"}
+            onChange={(e) => setForm({ ...form, model_name: e.target.value })}
+            className="w-full px-2 py-1.5 text-xs rounded-md border border-gray-200 dark:border-[#1F1F23] bg-gray-50 dark:bg-[#1A1A1E] text-gray-900 dark:text-white"
+          >
+            <option value="lstm_60">LSTM 60-day window</option>
+            <option value="lstm_30">LSTM 30-day window</option>
+          </select>
+        </div>
+        <Field label="Market Cap Top N" desc="Only consider top N stocks by market cap (10–100)" value={form.market_cap_top_n} min={5} max={100} step={5} onChange={(v) => setForm({ ...form, market_cap_top_n: v })} />
         <div className="col-span-2">
           <label className="text-xs font-medium text-gray-900 dark:text-white">Allocation Strategy</label>
           <p className="text-[10px] text-gray-400 mb-1">How trades are sized and positions rebalanced</p>

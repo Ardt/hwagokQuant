@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import config as cfg
 
+ANNUALIZE = np.sqrt(252)  # annualization factor for daily returns
+
 
 def generate_signals(probabilities: np.ndarray, threshold: float = None) -> np.ndarray:
     """Convert model probabilities to signals: 1=buy, 0=hold, -1=sell."""
@@ -85,7 +87,20 @@ def _sharpe(equity: np.ndarray, risk_free: float = 0.02) -> float:
     if returns.std() == 0:
         return 0.0
     daily_rf = risk_free / 252
-    return (returns.mean() - daily_rf) / returns.std() * np.sqrt(252)
+    return (returns.mean() - daily_rf) / returns.std() * ANNUALIZE
+
+
+def information_ratio(equity: np.ndarray, benchmark_prices: np.ndarray) -> float:
+    """Information ratio: excess return over benchmark / tracking error."""
+    if len(equity) < 2 or len(benchmark_prices) < 2:
+        return 0.0
+    n = min(len(equity), len(benchmark_prices))
+    port_returns = np.diff(equity[:n]) / equity[:n - 1]
+    bench_returns = np.diff(benchmark_prices[:n]) / benchmark_prices[:n - 1]
+    excess = port_returns - bench_returns
+    if excess.std() == 0:
+        return 0.0
+    return excess.mean() / excess.std() * ANNUALIZE
 
 
 def print_report(result: dict, ticker: str = ""):

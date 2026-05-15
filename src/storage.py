@@ -51,10 +51,15 @@ def upload_models(models_dir: str = None):
     if not enabled():
         return
     models_dir = models_dir or os.path.join(cfg.DATA_DIR, "models")
-    files = globmod.glob(os.path.join(models_dir, "*.pt"))
-    for f in files:
-        upload_file(f, "models/")
-    log.info(f"Uploaded {len(files)} models to {OCI_BUCKET}/models/")
+    count = 0
+    for model_name in cfg.MODELS:
+        subdir = os.path.join(models_dir, model_name)
+        if not os.path.isdir(subdir):
+            continue
+        for f in globmod.glob(os.path.join(subdir, "*.pt")):
+            upload_file(f, f"models/{model_name}/")
+            count += 1
+    log.info(f"Uploaded {count} models to {OCI_BUCKET}/models/")
 
 
 def upload_results(data_dir: str = None):
@@ -72,12 +77,14 @@ def download_models(models_dir: str = None):
         return
     client = _get_client()
     models_dir = models_dir or os.path.join(cfg.DATA_DIR, "models")
-    os.makedirs(models_dir, exist_ok=True)
-    objects = client.list_objects(OCI_NAMESPACE, OCI_BUCKET, prefix="models/").data.objects
     count = 0
-    for obj in objects:
-        if obj.name.endswith(".pt"):
-            local_name = obj.name.removeprefix("models/")
-            download_file(obj.name, os.path.join(models_dir, local_name))
-            count += 1
+    for model_name in cfg.MODELS:
+        subdir = os.path.join(models_dir, model_name)
+        os.makedirs(subdir, exist_ok=True)
+        objects = client.list_objects(OCI_NAMESPACE, OCI_BUCKET, prefix=f"models/{model_name}/").data.objects
+        for obj in objects:
+            if obj.name.endswith(".pt"):
+                local_name = os.path.basename(obj.name)
+                download_file(obj.name, os.path.join(subdir, local_name))
+                count += 1
     log.info(f"Downloaded {count} models from {OCI_BUCKET}/models/")

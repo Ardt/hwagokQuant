@@ -1,5 +1,7 @@
 /** Compute portfolio risk metrics from snapshots. */
 
+const ANNUALIZE = Math.sqrt(252)
+
 export function computeSharpe(snapshots: { total_value: number }[], riskFree = 0.02): number {
   if (snapshots.length < 3) return 0
   const values = snapshots.map((s) => s.total_value)
@@ -11,7 +13,23 @@ export function computeSharpe(snapshots: { total_value: number }[], riskFree = 0
   const std = Math.sqrt(returns.reduce((a, b) => a + (b - mean) ** 2, 0) / returns.length)
   if (std === 0) return 0
   const dailyRf = riskFree / 252
-  return ((mean - dailyRf) / std) * Math.sqrt(252)
+  return ((mean - dailyRf) / std) * ANNUALIZE
+}
+
+export function computeInformationRatio(snapshots: { total_value: number }[], benchmarkPrices: number[]): number {
+  if (snapshots.length < 3 || benchmarkPrices.length < 3) return 0
+  const n = Math.min(snapshots.length, benchmarkPrices.length)
+  const portReturns: number[] = []
+  const benchReturns: number[] = []
+  for (let i = 1; i < n; i++) {
+    portReturns.push((snapshots[i].total_value - snapshots[i - 1].total_value) / snapshots[i - 1].total_value)
+    benchReturns.push((benchmarkPrices[i] - benchmarkPrices[i - 1]) / benchmarkPrices[i - 1])
+  }
+  const excess = portReturns.map((r, i) => r - benchReturns[i])
+  const mean = excess.reduce((a, b) => a + b, 0) / excess.length
+  const std = Math.sqrt(excess.reduce((a, b) => a + (b - mean) ** 2, 0) / excess.length)
+  if (std === 0) return 0
+  return (mean / std) * ANNUALIZE
 }
 
 export function computeMaxDrawdown(snapshots: { total_value: number }[]): number {

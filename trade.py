@@ -94,11 +94,11 @@ def select_portfolio() -> dict | None:
         return None
 
 
-def predict_ticker(ticker: str, df, macro_df, market: str, settings: dict = None) -> dict | None:
+def predict_ticker(ticker: str, df, macro_df, market: str, settings: dict = None, model_name: str = None) -> dict | None:
     """Load model and generate signal for a ticker."""
     settings = settings or {}
-    if not has_saved_model(ticker):
-        log.warning(f"{ticker}: no saved model")
+    if not has_saved_model(ticker, model_name):
+        log.warning(f"{ticker}: no saved model ({model_name})")
         return None
 
     df = add_technical_indicators(df)
@@ -113,15 +113,18 @@ def predict_ticker(ticker: str, df, macro_df, market: str, settings: dict = None
     df = merge_macro(df, macro_df)
     df = df.dropna()
 
-    if len(df) < cfg.SEQUENCE_LENGTH + 10:
+    mcfg_model = cfg.MODELS.get(model_name or cfg.DEFAULT_MODEL, {})
+    seq_len = mcfg_model.get("sequence_length", cfg.SEQUENCE_LENGTH)
+
+    if len(df) < seq_len + 10:
         log.warning(f"{ticker}: not enough data")
         return None
 
     features, _ = prepare_features(df)
     target = build_target(df)
-    X, _ = create_sequences(features, target, cfg.SEQUENCE_LENGTH)
+    X, _ = create_sequences(features, target, seq_len)
 
-    model = load_model(ticker)
+    model = load_model(ticker, model_name)
     raw_output = predict(model, X[-30:])
     probs = raw_output[:, 0]
     signals = generate_signals(probs, threshold=float(settings.get("signal_threshold", 0.5)))
@@ -157,6 +160,7 @@ def main():
     pid = portfolio["id"]
 
     # Per-portfolio strategy params (with defaults)
+    model_name = portfolio.get("model_name") or cfg.DEFAULT_MODEL
     strategy = {
         "signal_threshold": str(portfolio.get("signal_threshold") or 0.5),
         "vix_threshold": str(portfolio.get("vix_threshold") or 30),
@@ -171,11 +175,15 @@ def main():
     watchlist = [w["ticker"] for w in pm.get_watchlist(pid)]
     tickers = list(set(holdings + watchlist))
     if not tickers:
-        # Auto-populate watchlist from both markets
-        log.info("No tickers in portfolio. Auto-populating watchlist from universe...")
+        # Auto-populate watchlist from both markets (respecting market_cap_top_n)
+        top_n = portfolio.get("market_cap_top_n") or 100
+        log.info(f"No tickers in portfolio. Auto-populating watchlist (top {top_n})...")
         from src.data.collector import get_universe as get_us_universe
         from src.data.krx_collector import get_universe as get_krx_universe
-        for t in get_us_universe():
+        for t in get_us_universe()[:top_n]:
+            if not pm.add_to_watchlist(pid, t):
+                break
+        for t in get_krx_universe()[:top_n]:
             if not pm.add_to_watchlist(pid, t):
                 break
         for t in get_krx_universe():
@@ -219,7 +227,7 @@ def main():
             if ticker not in all_data["Ticker"].values:
                 continue
             ticker_df = all_data[all_data["Ticker"] == ticker].copy().drop(columns=["Ticker"])
-            result = predict_ticker(ticker, ticker_df, macro_df, market, strategy)
+            result = predict_ticker(ticker, ticker_df, macro_df, market, strategy, model_name)
             if result:
                 results.append(result)
 

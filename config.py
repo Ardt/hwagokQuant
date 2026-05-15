@@ -8,15 +8,38 @@ load_dotenv()
 DATA_DIR = "data"
 START_DATE = "2020-01-01"
 END_DATE = None  # None = today
-SEQUENCE_LENGTH = 60
 
-# LSTM Model
-HIDDEN_SIZE = 64
-NUM_LAYERS = 2
-DROPOUT = 0.2
-LEARNING_RATE = 0.001
-EPOCHS = 50
-BATCH_SIZE = 32
+# LSTM Models (keyed by name)
+MODELS = {
+    "lstm_60": {
+        "sequence_length": 60,
+        "hidden_size": 64,
+        "num_layers": 2,
+        "dropout": 0.2,
+        "learning_rate": 0.001,
+        "epochs": 50,
+        "batch_size": 32,
+    },
+    "lstm_30": {
+        "sequence_length": 30,
+        "hidden_size": 64,
+        "num_layers": 2,
+        "dropout": 0.2,
+        "learning_rate": 0.001,
+        "epochs": 50,
+        "batch_size": 32,
+    },
+}
+DEFAULT_MODEL = "lstm_60"
+
+# Legacy (for backward compat)
+SEQUENCE_LENGTH = MODELS[DEFAULT_MODEL]["sequence_length"]
+HIDDEN_SIZE = MODELS[DEFAULT_MODEL]["hidden_size"]
+NUM_LAYERS = MODELS[DEFAULT_MODEL]["num_layers"]
+DROPOUT = MODELS[DEFAULT_MODEL]["dropout"]
+LEARNING_RATE = MODELS[DEFAULT_MODEL]["learning_rate"]
+EPOCHS = MODELS[DEFAULT_MODEL]["epochs"]
+BATCH_SIZE = MODELS[DEFAULT_MODEL]["batch_size"]
 TRAIN_RATIO = 0.8
 
 # Backtesting

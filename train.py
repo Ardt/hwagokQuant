@@ -163,10 +163,14 @@ def train_market(market: str, tickers: list[str], full: bool = False, model_name
         all_data = all_data[all_data.index <= cfg.END_DATE]
         macro_df = macro_df[macro_df.index <= cfg.END_DATE]
 
-    # Skip if market closed (no new data for today)
+    # Skip if market closed (no new data for today, allow weekend gaps)
     trading_date = cfg.END_DATE or date.today().isoformat()
-    if all_data.empty or str(all_data.index.max().date()) < trading_date:
-        log.info(f"{market}: market closed on {trading_date}, skipping training")
+    if all_data.empty:
+        log.info(f"{market}: no data, skipping training")
+        return
+    days_since_last = (pd.Timestamp(trading_date) - all_data.index.max()).days
+    if days_since_last > 4:
+        log.info(f"{market}: market closed on {trading_date} (last data {days_since_last} days ago), skipping training")
         return
 
     results = []

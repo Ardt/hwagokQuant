@@ -219,8 +219,13 @@ def main():
             macro_df = macro_df[macro_df.index <= cfg.END_DATE]
 
         # Skip market if no data for trading date (market closed)
-        if all_data.empty or str(all_data.index.max().date()) < trading_date:
-            log.info(f"{market}: market closed on {trading_date}, skipping")
+        # Allow up to 4 days gap (weekends + holidays)
+        if all_data.empty:
+            log.info(f"{market}: no data, skipping")
+            continue
+        days_since_last = (pd.Timestamp(trading_date) - all_data.index.max()).days
+        if days_since_last > 4:
+            log.info(f"{market}: market closed on {trading_date} (last data {days_since_last} days ago), skipping")
             continue
 
         for ticker in market_tickers:
@@ -326,7 +331,7 @@ def main():
             elif t["action"] == "BUY":
                 cash_by_cur[cur] = cash_by_cur.get(cur, 0) - t["total"]
 
-    trades = all_trades
+    trades = [t for t in all_trades if t.get("price", 0) > 0]
     if not trades:
         log.info("No trades (HOLD only)")
         for r in results:

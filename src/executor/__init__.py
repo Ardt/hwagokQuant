@@ -29,3 +29,13 @@ def get_executor(name: str = "paper") -> Executor:
     if name not in EXECUTORS:
         raise ValueError(f"Unknown executor: '{name}'. Available: {list(EXECUTORS.keys())}")
     return EXECUTORS[name]()
+
+
+# Auto-import all modules in this package
+import importlib
+import pkgutil
+import pathlib
+
+_pkg_dir = pathlib.Path(__file__).parent
+for _mod in pkgutil.iter_modules([str(_pkg_dir)]):
+    importlib.import_module(f".{_mod.name}", __package__)

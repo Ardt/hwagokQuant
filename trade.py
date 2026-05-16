@@ -3,6 +3,7 @@
 import os
 import sys
 from datetime import date
+import pandas as pd
 import config as cfg
 from src import logger
 from src.market import detect_market, detect_portfolio_market, get_config

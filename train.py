@@ -190,8 +190,9 @@ def train_market(market: str, tickers: list[str], full: bool = False, model_name
         summary.to_csv(os.path.join(cfg.DATA_DIR, f"training_results{suffix}_{model_name}.csv"), index=False)
         log.info(f"\n{summary.to_string(index=False)}")
 
-        # Watchlist management
-        _update_watchlists(market, summary)
+        # Watchlist management (only for default model to avoid duplicate notifications)
+        if model_name == cfg.DEFAULT_MODEL:
+            _update_watchlists(market, summary)
 
     log.info(f"=== {market} Training Complete: {len(results)}/{len(tickers)} models ===")
 
@@ -342,19 +343,6 @@ def main():
 
             # 3. Train
             train_market(market, tickers, full=full, model_name=model_name)
-
-    # Sync ticker names to DB
-    _sync_ticker_names()
-
-    # Sync benchmark prices (KOSPI, NASDAQ100)
-    _sync_benchmarks()
-
-    # Update exchange rate
-    try:
-        from fetch_exchange_rate import fetch_and_store
-        fetch_and_store()
-    except Exception as e:
-        log.warning(f"Exchange rate update failed: {e}")
 
     # Upload to OCI Object Storage (no-op if not configured)
     storage.upload_models()
